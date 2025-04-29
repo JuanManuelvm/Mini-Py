@@ -11,8 +11,13 @@
 ;;                     <id-exp (id)>
 ;;                 ::= <hexadecimal>  
 ;;                     <hexa-exp (base hexa-number)>
-
-
+;;                 ::= <cadena>  
+;;                     <text-exp (cadena-texto)>
+;;                 ::= <primitive> ({<expression>}*(,))
+;;                     <primapp-exp (prim rands)>
+;;
+;; <primitive>     ::= + | - | * | / | % | add1 | sub1 |
+;;
 ;;                 ::= var {<identificador> = <expresion>}*(,) in <expresion> --(let)--
 ;;                     <var-exp (ids rands body)>
 ;;                 ::= const {<identificador> = <expresion>}*(,) in <expresion> --(let)--
@@ -24,7 +29,7 @@
 ;;                  ::= if <expr-bool> then <expresion> [ else <expression> ] end
 ;;                      <if-exp (exp-bool exp2 exp3)>
 
-;;                 ::= <cadena>  
+
 ;;                 ::= <bool> 
 ;;
 ;;                 ::= <lista>
@@ -45,7 +50,8 @@
 ;; <pred-prim>     ::= < | > | <= | >= | == | <>
 ;; <oper-bin-bool> ::= and | or
 ;; <oper-un-bool>  ::= not
-;;  <primitive> = UN POCO DE PRIMITIVAS
+;; <primitive> = UN POCO DE PRIMITIVAS
+
 
 ;;************************************************************************************************************
 
@@ -67,8 +73,25 @@
   '((program (expresion) a-program)
     (expresion (number) num-exp)
     (expresion (identifier) id-exp)
-    (expresion ("(" number (arbno number)")") hexa-exp)
-    (expresion (string) text-exp)
+    (expresion ("(" number (arbno number)")") hexa-exp) ;; Base nuestra
+    (expresion (string) text-exp) 
+    (expresion (primitive "(" (separated-list expresion ",")")") primapp-exp) ;; Base de interpretador del curso
+
+    (primitive ("+") add-prim-aritmetica) ;; Base de interpretador del curso
+    (primitive ("-") substract-prim-aritmetica) ;; Base de interpretador del curso
+    (primitive ("*") mult-prim-aritmetica) ;; Base de interpretador del curso
+    (primitive ("/") div-prim-aritmetica) ;; Base de interpretador del curso
+    (primitive ("%") residuo-prim-aritmetica) ;; Base de interpretador del curso
+    (primitive ("add1") incr-prim-aritmetica) ;; Base de interpretador del curso
+    (primitive ("sub1") decr-prim-aritmetica) ;; Base de interpretador del curso
+    (primitive ("sub1") decr-prim-aritmetica) ;; Base de interpretador del curso
+    (primitive ("len") longitud-prim-text) ;; Base de python
+    (primitive ("concat") concatenar-prim-text) ;; Base de java
+
+
+    (expresion (bool) bool-exp)
+    (bool ("True") bool-true)
+    (bool ("False") bool-false)
     ))
 
 ;;************************************************************************************************************
@@ -133,8 +156,28 @@
       (num-exp (numero) numero)
       (id-exp (id) (apply-env env id))
       (hexa-exp (base hexa-number) (base-hexa->numero base hexa-number))
-      (text-exp (cadena) (substring cadena 1 (- (string-length cadena) 1))) ;; Esto aun esta en veremos
+      (text-exp (cadena) (substring cadena 1 (- (string-length cadena) 1)))
+      (primapp-exp (prim rands) (let ((args (eval-rands rands env)))
+                                  (apply-primitive prim args env)))
+      (bool-exp (booleano) (eval-bool booleano))
       )))
+
+;;apply-primitive: <primitiva> <list-of-expression> -> numero | text 
+;;función que aplica la primitiva dada
+(define apply-primitive
+  (lambda (prim args env)
+    (cases primitive prim
+      (add-prim-aritmetica () (+ (car args) (cadr args)))
+      (substract-prim-aritmetica () (- (car args) (cadr args)))
+      (mult-prim-aritmetica () (* (car args) (cadr args)))
+      (div-prim-aritmetica () (/ (car args) (cadr args)))
+      (residuo-prim-aritmetica () (remainder (car args) (cadr args)))
+      (incr-prim-aritmetica () (+ (car args) 1))
+      (decr-prim-aritmetica () (- (car args) 1))
+      (longitud-prim-text () (string-length (car args)))
+      (concatenar-prim-text () (string-append (car args) (cadr args)))
+      )))
+
 
 ;;************************************************************************************************************
 
@@ -224,6 +267,28 @@
 
 ;; (16 1 2) --> 33
 ;; (16 2 0 1) --> 258
+
+;;eval-bool: <bool> -> True | False
+;;función auxiliar que evalúa un booleano 
+;;(procesa/elimina la sintaxis abstracta de bool 
+;;y retorna un valor True o False)
+
+(define eval-bool
+  (lambda (booleano)
+    (cases bool booleano
+      (bool-true () "True")
+      (bool-false () "False"))
+    ))
+
+;;funciones auxiliares para aplicar eval-expresion a cada elemento de una 
+;;lista de operandos (expresiones)
+(define eval-rands
+  (lambda (rands env)
+    (map (lambda (x) (eval-rand x env)) rands)))
+
+(define eval-rand
+  (lambda (rand env)
+    (eval-expresion rand env)))
 
 ;;************************************************************************************************************
 
