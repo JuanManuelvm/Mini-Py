@@ -97,6 +97,10 @@
     ;(expresion ("[" prim-lista (separated-list expresion ";") "]") lista-exp)
     ;(prim-lista ("crear-lista") prim-crear-lista)
     ;(prim-lista ("car") prim-cabeza-lista)
+    (expresion ("var" (arbno identifier "=" expresion ",") "in" expresion) let-exp)
+    (expresion ("const" (arbno identifier "=" expresion ",") "in" expresion) const-exp)
+    (expresion ("begin" expresion (arbno ";" expresion) "end") begin-exp)
+    (expresion ("set" identifier "=" expresion) set-exp)
     
     (primitive ("+") add-prim-aritmetica) ;; Base de interpretador del curso
     (primitive ("-") substract-prim-aritmetica) ;; Base de interpretador del curso
@@ -196,6 +200,19 @@
                                   (apply-primitive prim args env)))
       (bool-app-exp (exprbooleana) (eval-expr-bool exprbooleana env))
       ;(lista-exp (prim lista) (apply-prim-lista prim lista env))
+      (let-exp (ids exps body) (let ((args (eval-rands exps env)))
+                                 (eval-expresion body (extend-env ids args env))
+                                 ))
+      (begin-exp (exp exps) (let loop ((acc (eval-expresion exp env))
+                                       (exps exps))
+                              (if (null? exps)
+                                  acc
+                                  (loop (eval-expresion (car exps) env)
+                                        (cdr exps)))))
+      (set-exp (id new-exps) (begin
+                               (setref! (apply-env-ref env id) (eval-expresion new-exps env))
+                               1))
+      (const-exp (ids exps body) 'empty)
       )))
 
 ;;apply-primitive: <primitiva> <list-of-expression> -> numero | text 
