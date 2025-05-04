@@ -2,8 +2,8 @@
 
 ;; Gramatica
 
-;;  <program>       ::= <expression>
-;;                      <a-program (exp)>
+;;  <program>      ::= <expression>
+;;                     <a-program (exp)>
 ;;
 ;;  <expresion>    ::= <numero>  
 ;;                     <num-exp (number)>
@@ -13,10 +13,31 @@
 ;;                     <hexa-exp (base hexa-number)>
 ;;                 ::= <cadena>  
 ;;                     <text-exp (cadena-texto)>
+;;                 ::= <bool>
+;;                     <bool-exp (bool)>
 ;;                 ::= <primitive> ({<expression>}*(,))
 ;;                     <primapp-exp (prim rands)>
+;;                 ::= <expr-bool> 
+;;                     <bool-app-exp (expresionbooleana)>
 ;;
-;; <primitive>     ::= + | - | * | / | % | add1 | sub1 |
+;;
+;; <primitive>     ::= + | - | * | / | % | add1 | sub1
+;;                 ::= len | concat
+;;
+;; <expr-bool>     ::= <pred-prim>(<expresion> , <expresion>)
+;;                     <expr-bool-exps (prim exp1 exp2)>
+;;                 ::= <oper-bin-bool>(<expr-bool> , <expr-bool>)
+;;                     <expr-bool-bools (prim expbool expbool)>
+;;                 ::= <oper-un-bool>(<expr-bool>)
+;;                     <expr-bool-unbool (prim expbool)>
+;;                 ::= expr <bool>
+;;                     <exp-bool-booleano (bool)>
+;;
+;; <pred-prim>     ::= < | > | <= | >= | == | !=
+;; <oper-bin-bool> ::= and | or
+;; <oper-un-bool>  ::= not
+;; <bool>          ::= True | False
+
 ;;
 ;;                 ::= var {<identificador> = <expresion>}*(,) in <expresion> --(let)--
 ;;                     <var-exp (ids rands body)>
@@ -28,14 +49,15 @@
 ;;                     <begin-exp (exp exps)>
 ;;                  ::= if <expr-bool> then <expresion> [ else <expression> ] end
 ;;                      <if-exp (exp-bool exp2 exp3)>
+;;
 
 
-;;                 ::= <bool> 
+
+
 ;;
 ;;                 ::= <lista>
 ;;                 ::= <tupla>
 ;;                 ::= <registro>
-;;                 ::= <expr-bool>
 ;;                 ::= <circuit>
 ;;                 ::= while <expr-bool> do <expresion> done
 ;;                 ::= for <identificador> in <expresion> do <expresion> done
@@ -43,13 +65,7 @@
 ;; <lista>         ::= [{<expresion>}∗(;)]
 ;; <tupla>         ::= tupla[{<expresion>}∗(;)]
 ;; <registro>      ::= {{<identificador> = <expresion>}+(;)}
-;; <expr-bool>     ::= <pred-prim>(<expresion> , <expresion>)
-;;                 ::= <oper-bin-bool>(<expr-bool> , <expr-bool>)
-;;                 ::= <bool>
-;;                 ::= <oper-un-bool >(<expr-bool >)
-;; <pred-prim>     ::= < | > | <= | >= | == | <>
-;; <oper-bin-bool> ::= and | or
-;; <oper-un-bool>  ::= not
+
 ;; <primitive> = UN POCO DE PRIMITIVAS
 
 
@@ -74,9 +90,18 @@
     (expresion (number) num-exp)
     (expresion (identifier) id-exp)
     (expresion ("(" number (arbno number)")") hexa-exp) ;; Base nuestra
-    (expresion (string) text-exp) 
+    (expresion (string) text-exp)
+    (expresion (bool) bool-exp)
     (expresion (primitive "(" (separated-list expresion ",")")") primapp-exp) ;; Base de interpretador del curso
+    (expresion (expr-bool) bool-app-exp)
+    (expresion ("[" prim-lista (separated-list expresion ";") "]") lista-exp)
 
+    (prim-lista ("crear-lista") prim-crear-lista)
+    (prim-lista ("car") prim-cabeza-lista)
+    
+
+    
+    
     (primitive ("+") add-prim-aritmetica) ;; Base de interpretador del curso
     (primitive ("-") substract-prim-aritmetica) ;; Base de interpretador del curso
     (primitive ("*") mult-prim-aritmetica) ;; Base de interpretador del curso
@@ -89,9 +114,23 @@
     (primitive ("concat") concatenar-prim-text) ;; Base de java
 
 
-    (expresion (bool) bool-exp)
+    ;; -- Gramatica Booleanos --
+    
     (bool ("True") bool-true)
     (bool ("False") bool-false)
+    (expr-bool (pred-prim "(" expresion "," expresion ")") expr-bool-exps)
+    (expr-bool (oper-bin-bool "(" expr-bool "," expr-bool ")") expr-bool-bools)
+    (expr-bool (oper-un-bool "(" expr-bool ")") expr-bool-unbool)
+    (expr-bool ("expr" bool) expr-bool-boleano)
+    (pred-prim ("<") menor-que)
+    (pred-prim (">") mayor-que)
+    (pred-prim ("<=") menor-igual-que)
+    (pred-prim (">=") mayor-igual-que)
+    (pred-prim ("==") igual-que)
+    (pred-prim ("!=") diferente-que)
+    (oper-bin-bool ("and") and-bool)
+    (oper-bin-bool ("or") or-bool)
+    (oper-un-bool ("not") not-bool)
     ))
 
 ;;************************************************************************************************************
@@ -157,13 +196,16 @@
       (id-exp (id) (apply-env env id))
       (hexa-exp (base hexa-number) (base-hexa->numero base hexa-number))
       (text-exp (cadena) (substring cadena 1 (- (string-length cadena) 1)))
+      (bool-exp (booleano) (eval-bool booleano))
       (primapp-exp (prim rands) (let ((args (eval-rands rands env)))
                                   (apply-primitive prim args env)))
-      (bool-exp (booleano) (eval-bool booleano))
+      (bool-app-exp (exprbooleana) (eval-expr-bool exprbooleana env))
+      (lista-exp (prim lista) (apply-prim-lista prim lista env))
       )))
 
 ;;apply-primitive: <primitiva> <list-of-expression> -> numero | text 
 ;;función que aplica la primitiva dada
+
 (define apply-primitive
   (lambda (prim args env)
     (cases primitive prim
@@ -178,6 +220,16 @@
       (concatenar-prim-text () (string-append (car args) (cadr args)))
       )))
 
+(define apply-prim-lista
+  (lambda (prim lista env)
+    (cases prim-lista prim
+      (prim-crear-lista () (apply vector lista))
+      (prim-cabeza-lista () (let* ((args (eval-rands lista env))
+                                  (vec (car args)))
+                                  (vector-ref vec 0)))
+      )))
+
+;(vector-ref lista 0)
 
 ;;************************************************************************************************************
 
@@ -268,18 +320,6 @@
 ;; (16 1 2) --> 33
 ;; (16 2 0 1) --> 258
 
-;;eval-bool: <bool> -> True | False
-;;función auxiliar que evalúa un booleano 
-;;(procesa/elimina la sintaxis abstracta de bool 
-;;y retorna un valor True o False)
-
-(define eval-bool
-  (lambda (booleano)
-    (cases bool booleano
-      (bool-true () "True")
-      (bool-false () "False"))
-    ))
-
 ;;funciones auxiliares para aplicar eval-expresion a cada elemento de una 
 ;;lista de operandos (expresiones)
 (define eval-rands
@@ -289,6 +329,82 @@
 (define eval-rand
   (lambda (rand env)
     (eval-expresion rand env)))
+
+
+;; -- Funciones auxiliares para los booleanos --
+
+
+;;eval-bool: <bool> -> True | False
+;;función auxiliar que evalúa un booleano 
+;;(procesa/elimina la sintaxis abstracta de bool 
+;;y retorna un valor True o False)
+
+(define eval-bool
+  (lambda (booleano)
+    (cases bool booleano
+      (bool-true () #t)
+      (bool-false () #f))
+    ))
+
+;;eval-expr-bool: <expr-bool> <enviroment> -> True | False
+;;función que evalúa una expresion booleana 
+;;(procesa/elimina la sintaxis abstracta de expr-bool 
+;;y retorna un valor True o False)¡
+
+(define eval-expr-bool
+  (lambda (exp env)
+    (cases expr-bool exp
+      (expr-bool-exps (prim exp1 exp2) (let((args (eval-rands (list exp1 exp2) env)))
+                                        (apply-pred-prim prim args env)))
+      (expr-bool-bools (prim exp1 exp2) (let ((args (eval-rands-bools (list exp1 exp2) env)))
+                                          (apply-oper-bin-bool prim args env)))
+      (expr-bool-unbool (prim exp1) (let ((arg (eval-rands-bools (list exp1) env)))
+                                          (apply-oper-un-bool prim arg env)))
+      (expr-bool-boleano (booleano) (eval-bool booleano))
+     )))
+
+;;eval-bool: <pred-prim> expresiones-evaluadas <enviroment> -> True | False
+;;función que aplica la <pred-prim> dada 
+
+(define apply-pred-prim
+  (lambda (prim args env)
+    (cases pred-prim prim
+      (menor-que () (< (car args) (cadr args)))
+      (mayor-que () (> (car args) (cadr args)))
+      (menor-igual-que () (<= (car args) (cadr args)))
+      (mayor-igual-que () (>= (car args) (cadr args)))
+      (igual-que () (equal? (car args) (cadr args)))
+      (diferente-que () (not (equal? (car args) (cadr args))))
+      )))
+
+;;eval-bool: <oper-bin-bool> expresiones-booleanas-evaluadas <enviroment> -> True | False
+;;función que aplica la <oper-bin-bool> dada
+
+(define apply-oper-bin-bool
+  (lambda (prim args env)
+    (cases oper-bin-bool prim
+      (and-bool () (and (car args) (cadr args)))
+      (or-bool () (or (car args) (cadr args)))
+      )))
+
+;;eval-bool: <oper-un-bool> expresion-booleana-evaluada <enviroment> -> True | False
+;;función que aplica la <oper-bin-bool> dada
+
+(define apply-oper-un-bool
+  (lambda (prim args env)
+    (cases oper-un-bool prim
+      (not-bool () (not (car args)))
+      )))
+
+;;funciones auxiliares para aplicar eval-expr-bool a cada elemento de una 
+;;lista de operandos (expresiones booleanas)
+(define eval-rands-bools
+  (lambda (rands env)
+    (map (lambda (x) (eval-rand-bool x env)) rands)))
+
+(define eval-rand-bool
+  (lambda (rand env)
+    (eval-expr-bool rand env)))
 
 ;;************************************************************************************************************
 
