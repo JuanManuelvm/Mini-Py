@@ -94,13 +94,9 @@
     (expresion (bool) bool-exp)
     (expresion (primitive "(" (separated-list expresion ",")")") primapp-exp) ;; Base de interpretador del curso
     (expresion (expr-bool) bool-app-exp)
-    (expresion ("[" prim-lista (separated-list expresion ";") "]") lista-exp)
-
-    (prim-lista ("crear-lista") prim-crear-lista)
-    (prim-lista ("car") prim-cabeza-lista)
-    
-
-    
+    ;(expresion ("[" prim-lista (separated-list expresion ";") "]") lista-exp)
+    ;(prim-lista ("crear-lista") prim-crear-lista)
+    ;(prim-lista ("car") prim-cabeza-lista)
     
     (primitive ("+") add-prim-aritmetica) ;; Base de interpretador del curso
     (primitive ("-") substract-prim-aritmetica) ;; Base de interpretador del curso
@@ -112,7 +108,6 @@
     (primitive ("sub1") decr-prim-aritmetica) ;; Base de interpretador del curso
     (primitive ("len") longitud-prim-text) ;; Base de python
     (primitive ("concat") concatenar-prim-text) ;; Base de java
-
 
     ;; -- Gramatica Booleanos --
     
@@ -200,7 +195,7 @@
       (primapp-exp (prim rands) (let ((args (eval-rands rands env)))
                                   (apply-primitive prim args env)))
       (bool-app-exp (exprbooleana) (eval-expr-bool exprbooleana env))
-      (lista-exp (prim lista) (apply-prim-lista prim lista env))
+      ;(lista-exp (prim lista) (apply-prim-lista prim lista env))
       )))
 
 ;;apply-primitive: <primitiva> <list-of-expression> -> numero | text 
@@ -220,16 +215,14 @@
       (concatenar-prim-text () (string-append (car args) (cadr args)))
       )))
 
-(define apply-prim-lista
-  (lambda (prim lista env)
-    (cases prim-lista prim
-      (prim-crear-lista () (apply vector lista))
-      (prim-cabeza-lista () (let* ((args (eval-rands lista env))
-                                  (vec (car args)))
-                                  (vector-ref vec 0)))
-      )))
-
-;(vector-ref lista 0)
+;(define apply-prim-lista
+;  (lambda (prim lista env)
+;    (cases prim-lista prim
+;      (prim-crear-lista () (apply vector lista))
+;      (prim-cabeza-lista () (let* ((args (eval-rands lista env))
+;                                  (vec (car args)))
+;                                  (vector-ref vec 0)))
+;      )))
 
 ;;************************************************************************************************************
 
