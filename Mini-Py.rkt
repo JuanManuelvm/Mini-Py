@@ -19,6 +19,16 @@
 ;;                     <primapp-exp (prim rands)>
 ;;                 ::= <expr-bool> 
 ;;                     <bool-app-exp (expresionbooleana)>
+;;                 ::= var {<identificador> = <expresion>}*(,) in <expresion> 
+;;                     <var-exp (ids rands body)>
+;;                 ::= const {<identificador> = <expresion>}*(,) in <expresion> 
+;;                     <constante-exp (ids rands body)>
+;;                 ::= begin <expression> {; <expression>}* end
+;;                     <begin-exp (exp exps)>
+;;                 ::= set <identificador> = <expression>
+;;                     <set-exp (exp exps)>
+;;                  ::= if <expr-bool> then <expresion> [ else <expression> ] end
+;;                      <if-exp (exp-bool true-exp false-exp)>
 ;;
 ;;
 ;; <primitive>     ::= + | - | * | / | % | add1 | sub1
@@ -39,21 +49,9 @@
 ;; <bool>          ::= True | False
 
 ;;
-;;                 ::= var {<identificador> = <expresion>}*(,) in <expresion> --(let)--
-;;                     <var-exp (ids rands body)>
-;;                 ::= const {<identificador> = <expresion>}*(,) in <expresion> --(let)--
-;;                     <constante-exp (ids rands body)>
+
 ;;                 ::= rec {<identificador> ({<identificador>}*(,)) = <expresion>}* in <expresion> --(letrec)--
 ;;                     <rec-exp (proc-names ids bodies bodyrec)>
-;;                 ::= begin <expression> {; <expression>}* end
-;;                     <begin-exp (exp exps)>
-;;                  ::= if <expr-bool> then <expresion> [ else <expression> ] end
-;;                      <if-exp (exp-bool exp2 exp3)>
-;;
-
-
-
-
 ;;
 ;;                 ::= <lista>
 ;;                 ::= <tupla>
@@ -101,7 +99,8 @@
     (expresion ("const" (arbno identifier "=" expresion ",") "in" expresion) const-exp)
     (expresion ("begin" expresion (arbno ";" expresion) "end") begin-exp)
     (expresion ("set" identifier "=" expresion) set-exp)
-    
+    (expresion ("if" expr-bool "then" expresion "[" "else" expresion "]" "end") if-exp)
+
     (primitive ("+") add-prim-aritmetica) ;; Base de interpretador del curso
     (primitive ("-") substract-prim-aritmetica) ;; Base de interpretador del curso
     (primitive ("*") mult-prim-aritmetica) ;; Base de interpretador del curso
@@ -181,7 +180,7 @@
   (lambda ()
     (extend-env
      '(i v x)
-     '(1 5 10)
+     '(1 1 10)
      (empty-env))))
 
 
@@ -201,8 +200,9 @@
       (bool-app-exp (exprbooleana) (eval-expr-bool exprbooleana env))
       ;(lista-exp (prim lista) (apply-prim-lista prim lista env))
       (let-exp (ids exps body) (let ((args (eval-rands exps env)))
-                                 (eval-expresion body (extend-env ids args env))
-                                 ))
+                                 (eval-expresion body (extend-env ids args env))))
+      (const-exp (ids exps body) (let ((args (eval-rands exps env)))
+                                   (eval-expresion body (extend-const-env ids args env))))
       (begin-exp (exp exps) (let loop ((acc (eval-expresion exp env))
                                        (exps exps))
                               (if (null? exps)
@@ -212,7 +212,10 @@
       (set-exp (id new-exps) (begin
                                (setref! (apply-env-ref env id) (eval-expresion new-exps env))
                                1))
-      (const-exp (ids exps body) 'empty)
+      (if-exp (exp-bool true-exp false-exp) (if (eval-expr-bool exp-bool env)
+                                                (eval-expresion true-exp env)
+                                                (eval-expresion false-exp env)))
+
       )))
 
 ;;apply-primitive: <primitiva> <list-of-expression> -> numero | text 
@@ -245,25 +248,33 @@
 
 ;; -- Ambientes --
 
-;;definición del tipo de dato ambiente
+;;definición del tipo de dato ambiente  
+;;Puede ser (ambientevacio) | (ambienteextendido (a b c) (2 4 6) (#t #t #t) (ambienteviejo))
 (define-datatype environment environment?
   (empty-env-record)
   (extended-env-record
    (syms (list-of symbol?))
    (vec vector?)
+   (mutable vector?) ;;Vector que almacena si las variables guardadas son mutables
    (env environment?)))
 
-;;empty-env:  -> enviroment
+;;empty-env: -> enviroment
 ;;función que crea un ambiente vacío
 (define empty-env  
   (lambda ()
     (empty-env-record))) ;; llamado al constructor de ambiente vacío 
 
 ;;extend-env: <list-of symbols> <list-of numbers> enviroment -> enviroment
-;;función que crea un ambiente extendido
+;;función que crea un ambiente extendido con variables mutables
 (define extend-env
   (lambda (syms vals env)
-    (extended-env-record syms (list->vector vals) env)))
+    (extended-env-record syms (list->vector vals) (make-vector (length syms) #t) env)))
+
+;;extend-env: <list-of symbols> <list-of numbers> enviroment -> enviroment
+;;función que crea un ambiente extendido con variables no mutables
+(define extend-const-env
+  (lambda (syms vals env)
+    (extended-env-record syms (list->vector vals) (make-vector (length syms) #f) env)))
 
 ;;función que busca un símbolo en un ambiente y retorna el valor almacenado en la referencia
 (define apply-env
@@ -276,10 +287,10 @@
     (cases environment env
       (empty-env-record ()
                         (eopl:error 'apply-env-ref "No binding for ~s" sym))
-      (extended-env-record (syms vals env)
+      (extended-env-record (syms vals sonmutables env)
                            (let ((pos (rib-find-position sym syms)))
                              (if (number? pos)
-                                 (a-ref pos vals)
+                                 (a-ref pos vals (vector-ref sonmutables pos))
                                  (apply-env-ref env sym)))))))
 
 ;;************************************************************************************************************
@@ -422,7 +433,8 @@
 
 (define-datatype reference reference?
   (a-ref (position integer?)
-         (vec vector?)))
+         (vec vector?)
+         (mutable? boolean?))) ;;Una referencia tendra un nuevo elemento booleano para saber si es mutable
 
 (define deref
   (lambda (ref)
@@ -431,7 +443,7 @@
 (define primitive-deref
   (lambda (ref)
     (cases reference ref
-      (a-ref (pos vec)
+      (a-ref (pos vec mutable?)
              (vector-ref vec pos)))))
 
 (define setref!
@@ -441,5 +453,8 @@
 (define primitive-setref!
   (lambda (ref val)
     (cases reference ref
-      (a-ref (pos vec)
-             (vector-set! vec pos val)))))
+      (a-ref (pos vec mutable?)
+             (if mutable? ;;Condicional para saber si la variable es mutable, si es #t seteara la variable con un nuevo valor 
+                 (vector-set! vec pos val)
+                 (eopl:error 'setref! "No se puede modificar la constante en la posición ~s" pos)
+                 )))))
