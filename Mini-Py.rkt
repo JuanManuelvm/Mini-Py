@@ -29,6 +29,10 @@
 ;;                     <set-exp (exp exps)>
 ;;                  ::= if <expr-bool> then <expresion> [ else <expression> ] end
 ;;                      <if-exp (exp-bool true-exp false-exp)>
+;;                  ::= proc({<identificador>}*(,)) <expresion>
+;;                      <proc-exp (ids body)>
+;;                  ::= (<expresion> {<expresion>}*)
+;;                      <app-exp proc rands>
 ;;
 ;;
 ;; <primitive>     ::= + | - | * | / | % | add1 | sub1
@@ -100,6 +104,8 @@
     (expresion ("begin" expresion (arbno ";" expresion) "end") begin-exp)
     (expresion ("set" identifier "=" expresion) set-exp)
     (expresion ("if" expr-bool "then" expresion "[" "else" expresion "]" "end") if-exp)
+    (expresion ("proc" "(" (separated-list identifier ",") ")" expresion) proc-exp)
+    (expresion ("aplicar" "(" expresion (arbno expresion) ")") app-exp)
 
     (primitive ("+") add-prim-aritmetica) ;; Base de interpretador del curso
     (primitive ("-") substract-prim-aritmetica) ;; Base de interpretador del curso
@@ -215,7 +221,12 @@
       (if-exp (exp-bool true-exp false-exp) (if (eval-expr-bool exp-bool env)
                                                 (eval-expresion true-exp env)
                                                 (eval-expresion false-exp env)))
-
+      (proc-exp (ids body) (closure ids body env))
+      (app-exp (rator rands) (let ((proc (eval-expresion rator env))
+                                   (args (eval-rands rands env)))
+                               (if (procval? proc)
+                                   (apply-procedure proc args)
+                                   (eopl:error 'eval-expresion "Attempt to apply non-procedure ~s" proc))))
       )))
 
 ;;apply-primitive: <primitiva> <list-of-expression> -> numero | text 
@@ -458,3 +469,22 @@
                  (vector-set! vec pos val)
                  (eopl:error 'setref! "No se puede modificar la constante en la posición ~s" pos)
                  )))))
+
+;;************************************************************************************************************
+
+;; -- Procedimientos --
+
+(define-datatype procval procval?
+  (closure
+   (ids (list-of symbol?))
+   (body expresion?)
+   (env environment?)))
+
+;;apply-procedure: evalua el cuerpo de un procedimientos
+;;en el ambiente extendido correspondiente
+
+(define apply-procedure
+  (lambda (proc args)
+    (cases procval proc
+      (closure (ids body env)
+               (eval-expresion body (extend-env ids args env))))))
