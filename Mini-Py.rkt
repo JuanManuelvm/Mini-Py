@@ -29,6 +29,10 @@
 ;;                     <set-exp (exp exps)>
 ;;                  ::= if <expr-bool> then <expresion> [ else <expression> ] end
 ;;                      <if-exp (exp-bool true-exp false-exp)>
+;;                  ::= while <expr-bool> do <expresion> done
+;;                      <while-exp (expr-bool expresion)>
+;;                  ::= for <identificador> in <expresion> do <expresion> done
+;;                      <for-exp (ids expresion body)
 ;;                  ::= proc({<identificador>}*(,)) <expresion>
 ;;                      <proc-exp (ids body)>
 ;;                  ::= (<expresion> {<expresion>}*)
@@ -110,8 +114,13 @@
     (prim-lista ("set-list") prim-set-lista)
     ;;Tuplas
     (expresion ("tupla" "[" prim-tupla (separated-list expresion ";") "]") tupla-exp)
-    (prim-tupla ("crear-lista") prim-crear-tupla)
-    (prim-tupla ("car") prim-cabeza-tupla)
+    (prim-tupla ("crear-tupla") prim-crear-tupla)
+    (prim-tupla ("cabeza") prim-cabeza-tupla)
+    (prim-tupla ("null?") prim-pregunta-vacioTupla)
+    (prim-tupla ("crear-null") prim-crear-vacioTupla)
+    (prim-tupla ("tupla?") prim-pregunta-tupla)
+    (prim-tupla ("cola") prim-cola-tupla)
+    (prim-tupla ("ref-tupla") prim-ref-tupla)
 
     (expresion ("var" (arbno identifier "=" expresion ",") "in" expresion) let-exp)
     (expresion ("const" (arbno identifier "=" expresion ",") "in" expresion) const-exp)
@@ -260,7 +269,7 @@
       (longitud-prim-text () (string-length (car args)))
       (concatenar-prim-text () (string-append (car args) (cadr args)))
       )))
-
+;;************************************************************************************************************
 ;;apply-primitive-lista:
 ;;función que aplica la primitiva dada a las listas
 (define apply-prim-lista
@@ -317,14 +326,38 @@
      )
    )
  )
-  
+;;************************************************************************************************************
+;;apply-primitive-tupla:
+;;función que aplica la primitiva dada a las listas
 (define apply-prim-tupla
   (lambda (prim tupla env)
     (cases prim-tupla prim
+      ;;Prim para preguntar si esta vacia la tupla
+      (prim-pregunta-vacioTupla () (if (= 0 (vector-length (car (eval-rands tupla env))))
+                                       (eval-bool (bool-true))
+                                       (eval-bool (bool-false))))
+      ;;Prim para crear tupla vacias
+      (prim-crear-vacioTupla () #())
+      ;;Prim para crear tupla
       (prim-crear-tupla () (apply vector tupla))
+      ;;Prim para preguntar si es una tupla
+      (prim-pregunta-tupla () (let ((args (eval-rands tupla env))) 
+                                (if (vector? (car args))
+                                    (eval-bool (bool-true))
+                                    (eval-bool (bool-false)))))
+      ;;Prim para extraer la cabeza de la tupla
       (prim-cabeza-tupla () (let* ((args (eval-rands tupla env))
                                   (vec (car args)))
-                                  (vector-ref vec 0)))
+                                  (eval-expresion (vector-ref vec 0) env)))
+      ;;Prim para extraer la cola de la tupla
+      (prim-cola-tupla () (let* ((args (eval-rands tupla env))
+                                  (vec (car args)))
+                                  (eval-expresion (vector-ref vec (- (vector-length vec) 1)) env)))
+      ;;Prim para seleccionar un elemento de una tupla
+      (prim-ref-tupla () (let* ((args (eval-rands tupla env))
+                                (vec (car args))
+                                (index (cadr args)))
+                           (eval-expresion (vector-ref vec index) env)))
       )))
 
 ;;************************************************************************************************************
