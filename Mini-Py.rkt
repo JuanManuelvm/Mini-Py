@@ -27,16 +27,18 @@
 ;;                     <begin-exp (exp exps)>
 ;;                 ::= set <identificador> = <expression>
 ;;                     <set-exp (exp exps)>
-;;                  ::= if <expr-bool> then <expresion> [ else <expression> ] end
-;;                      <if-exp (exp-bool true-exp false-exp)>
-;;                  ::= while <expr-bool> do <expresion> done
-;;                      <while-exp (expr-bool expresion)>
-;;                  ::= for <identificador> in <expresion> do <expresion> done
-;;                      <for-exp (ids expresion body)
-;;                  ::= proc({<identificador>}*(,)) <expresion>
-;;                      <proc-exp (ids body)>
-;;                  ::= (<expresion> {<expresion>}*)
-;;                      <app-exp proc rands>
+;;                 ::= if <expr-bool> then <expresion> [ else <expression> ] end
+;;                     <if-exp (exp-bool true-exp false-exp)>
+;; Pregunta ********************************************************************************
+;;                 ::= while <expr-bool> do <expresion> done
+;;                     <while-exp (expr-bool expresion)>
+;;                 ::= for <identificador> in <expresion> do <expresion> done
+;;                     <for-exp (ids expresion body)
+;; Pregunta ********************************************************************************
+;;                 ::= proc({<identificador>}*(,)) <expresion>
+;;                     <proc-exp (ids body)>
+;;                 ::= (<expresion> {<expresion>}*)
+;;                     <app-exp proc rands>
 ;;
 ;;
 ;; <primitive>     ::= + | - | * | / | % | add1 | sub1
@@ -127,6 +129,8 @@
     (expresion ("begin" expresion (arbno ";" expresion) "end") begin-exp)
     (expresion ("set" identifier "=" expresion) set-exp)
     (expresion ("if" expr-bool "then" expresion "[" "else" expresion "]" "end") if-exp)
+    (expresion ("while" expr-bool "do" expresion "done") while-exp)
+    (expresion ("for" identifier "in" expresion "do" expresion "done") for-exp) 
     (expresion ("proc" "(" (separated-list identifier ",") ")" expresion) proc-exp)
     (expresion ("aplicar" "(" expresion (arbno expresion) ")") app-exp)
 
@@ -239,6 +243,21 @@
                                   acc
                                   (loop (eval-expresion (car exps) env)
                                         (cdr exps)))))
+      (while-exp (exp-bool exp) (let loop ()
+                                  (if (eval-expr-bool exp-bool env)
+                                      (begin (eval-expresion exp env)
+                                             (loop))
+                                      'done)))
+      (for-exp (id iterable exp) (let* ((vec (eval-expresion iterable env))
+                                        (n (vector-length vec)))
+                                   (define (loop i)
+                                     (if (>= i n)
+                                         'done
+                                         (let* ((elem (eval-expresion (vector-ref vec i) env))
+                                                (nuevo-env (extend-env (list id) (list elem) env)))
+                                           (eval-expresion exp nuevo-env)
+                                           (loop (+ i 1)))))
+                                   (loop 0)))
       (set-exp (id new-exps) (begin
                                (setref! (apply-env-ref env id) (eval-expresion new-exps env))
                                1))
