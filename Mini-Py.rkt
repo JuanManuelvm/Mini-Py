@@ -103,17 +103,20 @@
     (expresion (primitive "(" (separated-list expresion ",")")") primapp-exp) ;; Base de interpretador del curso
     (expresion (expr-bool) bool-app-exp)
 
-    ;;Listas
-    (expresion (prim-lista "[" (separated-list expresion ";") "]") lista-exp)
-    (prim-lista ("crear-lista") prim-crear-lista)
-    (prim-lista ("cabeza") prim-cabeza-lista)
-    (prim-lista ("null?") prim-pregunta-vacioLista)
-    (prim-lista ("crear-null") prim-crear-vacioLista)
-    (prim-lista ("lista?") prim-pregunta-lista)
-    (prim-lista ("cola") prim-cola-lista)
+    (expresion (expr-lista) lista-exp) ;; YA QUEDO
+    (expr-lista (prim-lista "[" (separated-list expresion ";") "]") expr-lista-normal) ;; YA QUEDO
+    (expr-lista ("set-list" "[" lista-a-modificar ";" expresion ";" expresion "]") expr-lista-set) ;; YA QUEDO
+    (lista-a-modificar ("id" identifier) lista-a-modificar-id) ;; YA QUEDO
+    (lista-a-modificar ("lista-" expr-lista) lista-a-modificar-lista) ;; YA QUEDO
+    (prim-lista ("crear-lista") prim-crear-lista) ;; YA QUEDO
+    (prim-lista ("cabeza") prim-cabeza-lista) ;; YA QUEDO
+    (prim-lista ("null?") prim-pregunta-vacioLista) ;; YA QUEDO
+    (prim-lista ("cola") prim-cola-lista) ;; YA QUEDO
+    ;(prim-lista ("crear-null") prim-crear-vacioLista)
+    (prim-lista ("lista?") prim-pregunta-lista) 
     (prim-lista ("append") prim-adicionar-lista)
     (prim-lista ("ref-list") prim-ref-lista)
-    (prim-lista ("set-list") prim-set-lista)
+    
     ;;Tuplas
     (expresion ("tupla" "[" prim-tupla (separated-list expresion ";") "]") tupla-exp)
     (prim-tupla ("crear-tupla") prim-crear-tupla)
@@ -231,7 +234,7 @@
       (primapp-exp (prim rands) (let ((args (eval-rands rands env)))
                                   (apply-primitive prim args env)))
       (bool-app-exp (exprbooleana) (eval-expr-bool exprbooleana env))
-      (lista-exp (prim lista) (apply-prim-lista prim lista env)) ;;Lista
+      (lista-exp (expr-lista) (eval-expr-lista expr-lista env))
       (tupla-exp (prim tupla) (apply-prim-tupla prim tupla env)) ;;Tupla
       (let-exp (ids exps body) (let ((args (eval-rands exps env)))
                                  (eval-expresion body (extend-env ids args env))))
@@ -260,7 +263,7 @@
                                    (loop 0)))
       (set-exp (id new-exps) (begin
                                (setref! (apply-env-ref env id) (eval-expresion new-exps env))
-                               1))
+                               env))
       (if-exp (exp-bool true-exp false-exp) (if (eval-expr-bool exp-bool env)
                                                 (eval-expresion true-exp env)
                                                 (eval-expresion false-exp env)))
@@ -271,6 +274,46 @@
                                    (apply-procedure proc args)
                                    (eopl:error 'eval-expresion "Attempt to apply non-procedure ~s" proc))))
       )))
+
+
+(define eval-expr-lista
+  (lambda (expr env)
+    (cases expr-lista expr
+      (expr-lista-normal (prim lista) (apply-prim-lista prim lista env))
+      (expr-lista-set (lista pos nuevo-valor) (eval-lista-a-modificar lista pos nuevo-valor env))
+      )))
+
+(define eval-lista-a-modificar
+  (lambda (lista pos nuevo-valor env)
+    (cases lista-a-modificar lista
+      (lista-a-modificar-id (id) (let* ((vec (apply-env env id))
+                                        (index (eval-rands (cons pos '()) env))
+                                        (ref (apply-env-ref env id))
+                                        (mutable (ismutable? ref)))
+                                   (if mutable
+                                       (vector-set! vec (car index) nuevo-valor)
+                                       (eopl:error 'vector-set! "No se puede modificar la lista constante"))
+                                   vec))
+      (lista-a-modificar-lista (exp) (let ((lista (eval-rands-list (cons exp '()) env))
+                                           (index (eval-rands (cons pos '()) env)))
+                                       (vector-set! (car lista) (car index) nuevo-valor)
+                                       (car lista)))
+      )))
+
+(define ismutable?
+  (lambda (ref)
+    (cases reference ref
+      (a-ref (pos vec mut) mut)
+      )))
+
+(define eval-rands-list
+  (lambda (rands env)
+    (map (lambda (x) (eval-rand-list x env)) rands)))
+
+(define eval-rand-list
+  (lambda (rand env)
+    (eval-expr-lista rand env)))
+
 
 ;;apply-primitive: <primitiva> <list-of-expression> -> numero | text 
 ;;función que aplica la primitiva dada
@@ -288,6 +331,7 @@
       (longitud-prim-text () (string-length (car args)))
       (concatenar-prim-text () (string-append (car args) (cadr args)))
       )))
+
 ;;************************************************************************************************************
 ;;apply-primitive-lista:
 ;;función que aplica la primitiva dada a las listas
@@ -299,7 +343,7 @@
                                        (eval-bool (bool-true))
                                        (eval-bool (bool-false))))
       ;;Prim para crear listas vacias
-      (prim-crear-vacioLista () #())
+      ;(prim-crear-vacioLista () #())
       ;;Prim para crear listas
       (prim-crear-lista () (apply vector lista))
       ;;Prim para preguntar si es una lista
@@ -314,7 +358,7 @@
       ;;Prim para extraer la cola de la lista
       (prim-cola-lista () (let* ((args (eval-rands lista env))
                                   (vec (car args)))
-                                  (eval-expresion (vector-ref vec (- (vector-length vec) 1)) env)))
+                            (vector-cdr vec)))
       ;;Prim para adicionar elementos a una lista
       (prim-adicionar-lista () (let* ((args (eval-rands lista env))
                                       (vec (vector->list (car args)))
@@ -326,11 +370,15 @@
                                 (index (cadr args)))
                            (eval-expresion (vector-ref vec index) env)))
       ;;Prim para cambiar un elemento de una lista
-      (prim-set-lista () (let* ((args (eval-rands lista env))
-                                (vec (car args))
-                                (index (cadr args))
-                                (nuevo-valor (caddr lista)))
-                           (vector-set! vec index nuevo-valor) vec)) ;;Deberia extender un ambiente?
+;;       (prim-set-lista () (let* ((idvec (car lista))
+;;                                 (args (eval-rands lista env))
+;;                                 (vec (car args))
+;;                                 (index (cadr args))
+;;                                 (nuevo-valor (caddr lista))
+;;                                 ;(ref (apply-env-ref env idvec))
+;;                                 )
+;;                            (vector-set! vec index nuevo-valor)
+;;                            env)) ;;Deberia extender un ambiente?
       )))
 
 ;;Funcion Auxiliar para listas
@@ -345,6 +393,11 @@
      )
    )
  )
+
+(define vector-cdr
+  (lambda (v)
+    (list->vector (cdr (vector->list v)))))
+  
 ;;************************************************************************************************************
 ;;apply-primitive-tupla:
 ;;función que aplica la primitiva dada a las listas
