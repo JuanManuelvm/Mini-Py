@@ -29,16 +29,16 @@
 ;;                     <set-exp (exp exps)>
 ;;                 ::= if <expr-bool> then <expresion> [ else <expression> ] end
 ;;                     <if-exp (exp-bool true-exp false-exp)>
-;; Pregunta ********************************************************************************
 ;;                 ::= while <expr-bool> do <expresion> done
 ;;                     <while-exp (expr-bool expresion)>
 ;;                 ::= for <identificador> in <expresion> do <expresion> done
 ;;                     <for-exp (ids expresion body)
-;; Pregunta ********************************************************************************
 ;;                 ::= proc({<identificador>}*(,)) <expresion>
 ;;                     <proc-exp (ids body)>
 ;;                 ::= (<expresion> {<expresion>}*)
 ;;                     <app-exp proc rands>
+;;                  ::= rec  {identifier ({identifier}*(,)) = <expression>}* in <expression>
+;;                     <rec-exp proc-names idss bodies bodyrec>
 ;;
 ;;
 ;; <primitive>     ::= + | - | * | / | % | add1 | sub1
@@ -112,19 +112,19 @@
     (prim-lista ("cabeza") prim-cabeza-lista) ;; YA QUEDO
     (prim-lista ("null?") prim-pregunta-vacioLista) ;; YA QUEDO
     (prim-lista ("cola") prim-cola-lista) ;; YA QUEDO
-    ;(prim-lista ("crear-null") prim-crear-vacioLista)
+    (prim-lista ("crear-null") prim-crear-vacioLista)
     (prim-lista ("lista?") prim-pregunta-lista) 
     (prim-lista ("append") prim-adicionar-lista)
     (prim-lista ("ref-list") prim-ref-lista)
     
     ;;Tuplas
-    (expresion ("tupla" "[" prim-tupla (separated-list expresion ";") "]") tupla-exp)
+    (expresion (prim-tupla "[" (separated-list expresion ";") "]") tupla-exp)
     (prim-tupla ("crear-tupla") prim-crear-tupla)
-    (prim-tupla ("cabeza") prim-cabeza-tupla)
-    (prim-tupla ("null?") prim-pregunta-vacioTupla)
-    (prim-tupla ("crear-null") prim-crear-vacioTupla)
+    (prim-tupla ("cabeza-tupla") prim-cabeza-tupla)
+    (prim-tupla ("null-tupla?") prim-pregunta-vacioTupla)
+    (prim-tupla ("crear-null-tupla") prim-crear-vacioTupla)
     (prim-tupla ("tupla?") prim-pregunta-tupla)
-    (prim-tupla ("cola") prim-cola-tupla)
+    (prim-tupla ("cola-tupla") prim-cola-tupla)
     (prim-tupla ("ref-tupla") prim-ref-tupla)
 
     (expresion ("var" (arbno identifier "=" expresion ",") "in" expresion) let-exp)
@@ -133,9 +133,11 @@
     (expresion ("set" identifier "=" expresion) set-exp)
     (expresion ("if" expr-bool "then" expresion "[" "else" expresion "]" "end") if-exp)
     (expresion ("while" expr-bool "do" expresion "done") while-exp)
-    (expresion ("for" identifier "in" expresion "do" expresion "done") for-exp) 
+    (expresion ("for" identifier "in" expresion "do" expresion "done") for-exp)
+    (expresion ("print" "(" expresion ")") print-exp)
     (expresion ("proc" "(" (separated-list identifier ",") ")" expresion) proc-exp)
     (expresion ("aplicar" "(" expresion (arbno expresion) ")") app-exp)
+    (expresion ("rec" (arbno identifier "(" (separated-list identifier ",") ")" "=" expresion)  "in" expresion) rec-exp)
 
     (primitive ("+") add-prim-aritmetica) ;; Base de interpretador del curso
     (primitive ("-") substract-prim-aritmetica) ;; Base de interpretador del curso
@@ -251,16 +253,20 @@
                                       (begin (eval-expresion exp env)
                                              (loop))
                                       'done)))
-      (for-exp (id iterable exp) (let* ((vec (eval-expresion iterable env))
+      (for-exp (id iterable exp) (let* ((arg (eval-expresion iterable env))
+                                        (vec (if (vector? arg) arg (list->vector arg)))
                                         (n (vector-length vec)))
                                    (define (loop i)
                                      (if (>= i n)
                                          'done
-                                         (let* ((elem (eval-expresion (vector-ref vec i) env))
+                                         (let* ((elem (vector-ref vec i))
                                                 (nuevo-env (extend-env (list id) (list elem) env)))
                                            (eval-expresion exp nuevo-env)
                                            (loop (+ i 1)))))
                                    (loop 0)))
+      (print-exp (exp) (let ((result (eval-expresion exp env)))
+                         (display result)
+                         result))
       (set-exp (id new-exps) (begin
                                (setref! (apply-env-ref env id) (eval-expresion new-exps env))
                                env))
@@ -273,8 +279,10 @@
                                (if (procval? proc)
                                    (apply-procedure proc args)
                                    (eopl:error 'eval-expresion "Attempt to apply non-procedure ~s" proc))))
+      (rec-exp (proc-names idss bodies rec-body)
+                  (eval-expresion rec-body
+                                   (extend-env-recursively proc-names idss bodies env))) ;;Nuevo para la recursion
       )))
-
 
 (define eval-expr-lista
   (lambda (expr env)
@@ -338,16 +346,16 @@
 (define apply-prim-lista
   (lambda (prim lista env)
     (cases prim-lista prim
+      ;;Prim para crear listas vacias
+      (prim-crear-vacioLista () #())
       ;;Prim para preguntar si esta vacia la lista
       (prim-pregunta-vacioLista () (if (= 0 (vector-length (car (eval-rands lista env))))
                                        (eval-bool (bool-true))
                                        (eval-bool (bool-false))))
-      ;;Prim para crear listas vacias
-      ;(prim-crear-vacioLista () #())
       ;;Prim para crear listas
       (prim-crear-lista () (apply vector lista))
       ;;Prim para preguntar si es una lista
-      (prim-pregunta-lista () (let ((args (eval-rands lista env))) 
+      (prim-pregunta-lista () (let ((args (eval-rands lista env))) ;;***************************Bien
                                 (if (vector? (car args))
                                     (eval-bool (bool-true))
                                     (eval-bool (bool-false)))))
@@ -356,30 +364,44 @@
                                   (vec (car args)))
                                   (eval-expresion (vector-ref vec 0) env)))
       ;;Prim para extraer la cola de la lista
-      (prim-cola-lista () (let* ((args (eval-rands lista env))
+      (prim-cola-lista () (let* ((args (eval-rands lista env))  ;;***********************************Bien
                                   (vec (car args)))
-                            (vector-cdr vec)))
-      ;;Prim para adicionar elementos a una lista
-      (prim-adicionar-lista () (let* ((args (eval-rands lista env))
-                                      (vec (vector->list (car args)))
-                                      (elem (if (vector? (cadr args)) (vector->list(cadr args)) (cadr args))))
-                                  (append (eliminar_parentesis vec) (list elem))))
+                            (list->vector (cdr (vector->list vec)))))
+      
       ;;Prim para seleccionar un elemento de una lista
       (prim-ref-lista () (let* ((args (eval-rands lista env))
                                 (vec (car args))
                                 (index (cadr args)))
                            (eval-expresion (vector-ref vec index) env)))
-      ;;Prim para cambiar un elemento de una lista
-;;       (prim-set-lista () (let* ((idvec (car lista))
-;;                                 (args (eval-rands lista env))
-;;                                 (vec (car args))
-;;                                 (index (cadr args))
-;;                                 (nuevo-valor (caddr lista))
-;;                                 ;(ref (apply-env-ref env idvec))
-;;                                 )
-;;                            (vector-set! vec index nuevo-valor)
-;;                            env)) ;;Deberia extender un ambiente?
+
+      ;;Prim para adicionar elementos a una lista
+       (prim-adicionar-lista () (let* ((args (eval-rands-exp2 (list (cadr lista)) env)) ;;*******************************Cambio para que cuando se haga el append se haga por referencia y no por valor
+                                      (vec-ref (apply-env-ref env (obtener-id-lista (car lista))))) ; Obtiene referencia
+                                 (cases reference vec-ref
+                                   (a-ref (pos vec mutable?)
+                                          (if mutable?
+                                              (let ((new-vec (append (vector->list (car (vector->list vec))) args)))
+                                                (vector-set! vec pos (apply vector new-vec)))
+                                              (eopl:error 'prim-adicionar-lista "Cannot modify immutable list"))))))
       )))
+(define eval-expresion2
+  (lambda (lista env)
+    (cases expresion lista
+      (id-exp (id) (apply-env env id))
+      (lista-exp (expr-lista) (eval-expr-lista expr-lista env))
+      (tupla-exp (prim tupla) (apply-prim-tupla prim tupla env)) ;;Tupla
+      (proc-exp (ids body) (closure ids body env))
+      (else lista)
+      )))
+;;funciones auxiliares para aplicar eval-expresion a cada elemento de una 
+;;lista de operandos (expresiones)
+(define eval-rands-exp2
+  (lambda (rands env)
+    (map (lambda (x) (eval-rand-exp2 x env)) rands)))
+
+(define eval-rand-exp2
+  (lambda (rand env)
+    (eval-expresion2 rand env)))
 
 ;;Funcion Auxiliar para listas
  (define eliminar_parentesis
@@ -393,11 +415,13 @@
      )
    )
  )
+   
+(define obtener-id-lista
+  (lambda (expr)
+    (cases expresion expr
+      (id-exp (id) id)
+      (else (eopl:error 'obtener-id-lista "Expected named list")))))
 
-(define vector-cdr
-  (lambda (v)
-    (list->vector (cdr (vector->list v)))))
-  
 ;;************************************************************************************************************
 ;;apply-primitive-tupla:
 ;;función que aplica la primitiva dada a las listas
@@ -405,29 +429,30 @@
   (lambda (prim tupla env)
     (cases prim-tupla prim
       ;;Prim para preguntar si esta vacia la tupla
-      (prim-pregunta-vacioTupla () (if (= 0 (vector-length (car (eval-rands tupla env))))
+      (prim-pregunta-vacioTupla () (if (null? (car (eval-rands tupla env))) ;; **************************************************************************** Si le doy una lista deberia salir error?
                                        (eval-bool (bool-true))
                                        (eval-bool (bool-false))))
       ;;Prim para crear tupla vacias
-      (prim-crear-vacioTupla () #())
+      (prim-crear-vacioTupla () '()) ;; **************************************************************************** Bien?
       ;;Prim para crear tupla
-      (prim-crear-tupla () (apply vector tupla))
+      (prim-crear-tupla () tupla) ;; **************************************************************************** Bien?
       ;;Prim para preguntar si es una tupla
-      (prim-pregunta-tupla () (let ((args (eval-rands tupla env))) 
-                                (if (vector? (car args))
+      (prim-pregunta-tupla () (let ((args (eval-rands tupla env))) ;; **************************************************************************** Bien?
+                                (if (list? (car args))
                                     (eval-bool (bool-true))
                                     (eval-bool (bool-false)))))
       ;;Prim para extraer la cabeza de la tupla
-      (prim-cabeza-tupla () (let* ((args (eval-rands tupla env))
-                                  (vec (car args)))
-                                  (eval-expresion (vector-ref vec 0) env)))
+      (prim-cabeza-tupla () (let* ((args (eval-rands tupla env)) ;; **************************************************************************** Bien?
+                                  (tup (car args)))
+                                  (eval-expresion (car tup) env)))
       ;;Prim para extraer la cola de la tupla
-      (prim-cola-tupla () (let* ((args (eval-rands tupla env))
-                                  (vec (car args)))
-                                  (eval-expresion (vector-ref vec (- (vector-length vec) 1)) env)))
+      (prim-cola-tupla () (let* ((args (eval-rands tupla env)) ;; **************************************************************************** Bien?
+                                  (tup (car args)))
+                                  (cdr tup)))
       ;;Prim para seleccionar un elemento de una tupla
-      (prim-ref-tupla () (let* ((args (eval-rands tupla env))
-                                (vec (car args))
+      (prim-ref-tupla () (let* ((args (eval-rands tupla env)) ;; **************************************************************************** Bien?
+                                (tup (car args))
+                                (vec (list->vector tup))
                                 (index (cadr args)))
                            (eval-expresion (vector-ref vec index) env)))
       )))
@@ -444,7 +469,8 @@
    (syms (list-of symbol?))
    (vec vector?)
    (mutable vector?) ;;Vector que almacena si las variables guardadas son mutables
-   (env environment?)))
+   (env environment?))
+  )
 
 ;;empty-env: -> enviroment
 ;;función que crea un ambiente vacío
@@ -464,6 +490,27 @@
   (lambda (syms vals env)
     (extended-env-record syms (list->vector vals) (make-vector (length syms) #f) env)))
 
+;extend-env-recursively: <list-of symbols> <list-of <list-of symbols>> <list-of expressions> environment -> environment
+;función que crea un ambiente extendido para procedimientos recursivos
+(define extend-env-recursively
+  (lambda (proc-names idss bodies old-env)
+    (let ((len (length proc-names)))
+      (let ((vec (make-vector len)))
+        (let ((env (extended-env-record proc-names vec (make-vector (length idss) #t) old-env)))
+          (for-each
+            (lambda (pos ids body)
+              (vector-set! vec pos (closure ids body env)))
+            (iota len) idss bodies)
+          env)))))
+
+;iota: number -> list
+;función que retorna una lista de los números desde 0 hasta end
+(define iota
+  (lambda (end)
+    (let loop ((next 0))
+      (if (>= next end) '()
+        (cons next (loop (+ 1 next)))))))
+
 ;;función que busca un símbolo en un ambiente y retorna el valor almacenado en la referencia
 (define apply-env
   (lambda (env sym)
@@ -479,7 +526,8 @@
                            (let ((pos (rib-find-position sym syms)))
                              (if (number? pos)
                                  (a-ref pos vals (vector-ref sonmutables pos))
-                                 (apply-env-ref env sym)))))))
+                                 (apply-env-ref env sym))))
+      )))
 
 ;;************************************************************************************************************
 
