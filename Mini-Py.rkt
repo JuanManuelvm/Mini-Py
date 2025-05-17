@@ -1,81 +1,116 @@
 #lang eopl
 
-;; Gramatica
-
-;;  <program>      ::= <expression>
-;;                     <a-program (exp)>
+;;************************************************************************************************************
 ;;
-;;  <expresion>    ::= <numero>  
-;;                     <num-exp (number)>
-;;                 ::= <identificador>  
-;;                     <id-exp (id)>
-;;                 ::= <hexadecimal>  
-;;                     <hexa-exp (base hexa-number)>
-;;                 ::= <cadena>  
-;;                     <text-exp (cadena-texto)>
-;;                 ::= <bool>
-;;                     <bool-exp (bool)>
-;;                 ::= <primitive> ({<expression>}*(,))
-;;                     <primapp-exp (prim rands)>
-;;                 ::= <expr-bool> 
-;;                     <bool-app-exp (expresionbooleana)>
-;;                 ::= var {<identificador> = <expresion>}*(,) in <expresion> 
-;;                     <var-exp (ids rands body)>
-;;                 ::= const {<identificador> = <expresion>}*(,) in <expresion> 
-;;                     <constante-exp (ids rands body)>
-;;                 ::= begin <expression> {; <expression>}* end
-;;                     <begin-exp (exp exps)>
-;;                 ::= set <identificador> = <expression>
-;;                     <set-exp (exp exps)>
-;;                 ::= if <expr-bool> then <expresion> [ else <expression> ] end
-;;                     <if-exp (exp-bool true-exp false-exp)>
-;;                 ::= while <expr-bool> do <expresion> done
-;;                     <while-exp (expr-bool expresion)>
-;;                 ::= for <identificador> in <expresion> do <expresion> done
-;;                     <for-exp (ids expresion body)
-;;                 ::= proc({<identificador>}*(,)) <expresion>
-;;                     <proc-exp (ids body)>
-;;                 ::= (<expresion> {<expresion>}*)
-;;                     <app-exp proc rands>
-;;                  ::= rec  {identifier ({identifier}*(,)) = <expression>}* in <expression>
-;;                     <rec-exp proc-names idss bodies bodyrec>
+;;  _______  ______    _______  __   __  _______  _______  _______  _______   
+;; |       ||    _ |  |       ||  | |  ||       ||       ||       ||       |  
+;; |    _  ||   | ||  |   _   ||  |_|  ||    ___||       ||_     _||   _   |  
+;; |   |_| ||   |_||_ |  | |  ||       ||   |___ |       |  |   |  |  | |  |  
+;; |    ___||    __  ||  |_|  ||_     _||    ___||      _|  |   |  |  |_|  |  
+;; |   |    |   |  | ||       |  |   |  |   |___ |     |_   |   |  |       |  
+;; |___|    |___|  |_||_______|  |___|  |_______||_______|  |___|  |_______|  
+;;  __   __  ___   __    _  ___          _______  __   __                     
+;; |  |_|  ||   | |  |  | ||   |        |       ||  | |  |                    
+;; |       ||   | |   |_| ||   |  ____  |    _  ||  |_|  |                    
+;; |       ||   | |       ||   | |____| |   |_| ||       |                    
+;; |       ||   | |  _    ||   |        |    ___||_     _|                    
+;; | ||_|| ||   | | | |   ||   |        |   |      |   |                      
+;; |_|   |_||___| |_|  |__||___|        |___|      |___|                      
 ;;
 ;;
-;; <primitive>     ::= + | - | * | / | % | add1 | sub1
-;;                 ::= len | concat
+;;************************************************************************************************************
 ;;
-;; <expr-bool>     ::= <pred-prim>(<expresion> , <expresion>)
+;; Integrantes:
+;; Pablo Esteban Becerra -
+;; Juan Manuel Vargas -
+;; Fernando Cardona Giraldo - 2241381
+;; 
+;;************************************************************************************************************
+;;
+;;
+;; -- Gramatica -- 
+;;
+;;
+;; <program>      ::= <expression>
+;;                    <a-program (exp)>
+;;
+;; <expresion>    ::= <numero>  
+;;                    <num-exp (number)>
+;;                ::= <identificador>  
+;;                    <id-exp (id)>
+;;                ::= (<hexadecimal>)  
+;;                    <hexa-exp (base hexa-number)>
+;;                ::= num->hexa(<numero>)  
+;;                    <covertir-num-a-hexa (num)>
+;;                ::= <cadena>  
+;;                    <text-exp (cadena-texto)>
+;;                ::= <bool>
+;;                    <bool-exp (bool)>
+;;                ::= <primitive> ({<expression>}*(,))
+;;                    <primapp-exp (prim rands)>
+;;                ::= <expr-bool> 
+;;                    <bool-app-exp (expresionbooleana)>
+;;                ::= <lista>
+;;                    <lista-exp (lista-expresion)>
+;;                ::= <prim-tupla>[{<expresion>}∗(;)]
+;;                    <tupla-exp (prim exps)>
+;;                ::= var {<identificador> = <expresion>}*(,) in <expresion> 
+;;                    <var-exp (ids rands body)>
+;;                ::= const {<identificador> = <expresion>}*(,) in <expresion> 
+;;                    <constante-exp (ids rands body)>
+;;                ::= rec {<identificador> ({<identificador>}*(,)) = <expresion>}* in <expresion> --(letrec)--
+;;                    <rec-exp (proc-names ids bodies bodyrec)>
+;;                ::= if <expr-bool> then <expresion> [ else <expression> ] end
+;;                    <if-exp (exp-bool true-exp false-exp)>
+;;                ::= proc({<identificador>}*(,)) <expresion>
+;;                    <proc-exp (ids body)>
+;;                ::= aplicar(<expresion> {<expresion>}*)
+;;                    <app-exp proc rands>
+;;                ::= begin <expression> {; <expression>}* end
+;;                    <begin-exp (exp exps)>
+;;                ::= set <identificador> = <expression>
+;;                    <set-exp (exp exps)>
+;;                ::= while <expr-bool> do <expresion> done
+;;                    <while-exp (expr-bool expresion)>
+;;                ::= for <identificador> in <expresion> do <expresion> done
+;;                    <for-exp (ids expresion body)>
+;;                ::= print (<expresion>)
+;;                    <print-exp (expresion)>
+;;
+;;                 ::= <registro> // Falta
+;;                 ::= <circuit> // Falta
+;;
+;; <primitive>    ::= + | - | * | / | % | add1 | sub1
+;;                ::= len | concat
+;;
+;; <expr-bool>    ::= <pred-prim>(<expresion> , <expresion>)
 ;;                     <expr-bool-exps (prim exp1 exp2)>
-;;                 ::= <oper-bin-bool>(<expr-bool> , <expr-bool>)
+;;                ::= <oper-bin-bool>(<expr-bool> , <expr-bool>)
 ;;                     <expr-bool-bools (prim expbool expbool)>
-;;                 ::= <oper-un-bool>(<expr-bool>)
+;;                ::= <oper-un-bool>(<expr-bool>)
 ;;                     <expr-bool-unbool (prim expbool)>
-;;                 ::= expr <bool>
+;;                ::= expr <bool>
 ;;                     <exp-bool-booleano (bool)>
 ;;
 ;; <pred-prim>     ::= < | > | <= | >= | == | !=
 ;; <oper-bin-bool> ::= and | or
 ;; <oper-un-bool>  ::= not
 ;; <bool>          ::= True | False
-
 ;;
-
-;;                 ::= rec {<identificador> ({<identificador>}*(,)) = <expresion>}* in <expresion> --(letrec)--
-;;                     <rec-exp (proc-names ids bodies bodyrec)>
+;; <lista>         ::= <prim-lista> [{<expresion>}∗(;)]
+;;                     <expr-lista-normal (prim exprs)>
+;;                 ::= set-list [<lista-a-modificar> ; <expresion>; <expresion>]
+;;                     <expr-lista-set (prim exprs)>
 ;;
-;;                 ::= <lista>
-;;                 ::= <tupla>
-;;                 ::= <registro>
-;;                 ::= <circuit>
-;;                 ::= while <expr-bool> do <expresion> done
-;;                 ::= for <identificador> in <expresion> do <expresion> done
+;; <lista-a-modificar> ::= id <identificador>
+;;                     ::= lista- <lista>
 ;;
-;; <lista>         ::= [{<expresion>}∗(;)]
-;; <tupla>         ::= tupla[{<expresion>}∗(;)]
-;; <registro>      ::= {{<identificador> = <expresion>}+(;)}
-
+;; <prim-lista>    ::= crear-lista | crear-null | cabeza | cola | null? | lista? | append | ref-list  
+;; <prim-tupla>    ::= crear-tupla | crear-null-tupla | cabeza-tupla | cola-tupla
+;;                     | null-tupla? | tupla? | ref-tupla
+;;
+;; <registro>      ::= {{<identificador> = <expresion>}+(;)} // FALTA
 ;; <primitive> = UN POCO DE PRIMITIVAS
-
 
 ;;************************************************************************************************************
 
@@ -97,48 +132,27 @@
   '((program (expresion) a-program)
     (expresion (number) num-exp)
     (expresion (identifier) id-exp)
-    (expresion ("(" number (arbno number)")") hexa-exp) ;; Base nuestra
+    (expresion ("(" number (arbno number)")") hexa-exp) ;; Representacion bignum
+    (expresion ("num->hexa" "(" number ")") convertir-num-a-hexa)
     (expresion (string) text-exp)
     (expresion (bool) bool-exp)
     (expresion (primitive "(" (separated-list expresion ",")")") primapp-exp) ;; Base de interpretador del curso
     (expresion (expr-bool) bool-app-exp)
-
-    (expresion (expr-lista) lista-exp) ;; YA QUEDO
-    (expr-lista (prim-lista "[" (separated-list expresion ";") "]") expr-lista-normal) ;; YA QUEDO
-    (expr-lista ("set-list" "[" lista-a-modificar ";" expresion ";" expresion "]") expr-lista-set) ;; YA QUEDO
-    (lista-a-modificar ("id" identifier) lista-a-modificar-id) ;; YA QUEDO
-    (lista-a-modificar ("lista-" expr-lista) lista-a-modificar-lista) ;; YA QUEDO
-    (prim-lista ("crear-lista") prim-crear-lista) ;; YA QUEDO
-    (prim-lista ("cabeza") prim-cabeza-lista) ;; YA QUEDO
-    (prim-lista ("null?") prim-pregunta-vacioLista) ;; YA QUEDO
-    (prim-lista ("cola") prim-cola-lista) ;; YA QUEDO
-    (prim-lista ("crear-null") prim-crear-vacioLista)
-    (prim-lista ("lista?") prim-pregunta-lista) 
-    (prim-lista ("append") prim-adicionar-lista)
-    (prim-lista ("ref-list") prim-ref-lista)
-    
-    ;;Tuplas
+    (expresion (expr-lista) lista-exp)
     (expresion (prim-tupla "[" (separated-list expresion ";") "]") tupla-exp)
-    (prim-tupla ("crear-tupla") prim-crear-tupla)
-    (prim-tupla ("cabeza-tupla") prim-cabeza-tupla)
-    (prim-tupla ("null-tupla?") prim-pregunta-vacioTupla)
-    (prim-tupla ("crear-null-tupla") prim-crear-vacioTupla)
-    (prim-tupla ("tupla?") prim-pregunta-tupla)
-    (prim-tupla ("cola-tupla") prim-cola-tupla)
-    (prim-tupla ("ref-tupla") prim-ref-tupla)
 
     (expresion ("var" (arbno identifier "=" expresion ",") "in" expresion) let-exp)
     (expresion ("const" (arbno identifier "=" expresion ",") "in" expresion) const-exp)
+    (expresion ("rec" (arbno identifier "(" (separated-list identifier ",") ")" "=" expresion)  "in" expresion) rec-exp)
+    (expresion ("if" expr-bool "then" expresion "[" "else" expresion "]" "end") if-exp)
+    (expresion ("proc" "(" (separated-list identifier ",") ")" expresion) proc-exp)
+    (expresion ("aplicar" "(" expresion (arbno expresion) ")") app-exp)
     (expresion ("begin" expresion (arbno ";" expresion) "end") begin-exp)
     (expresion ("set" identifier "=" expresion) set-exp)
-    (expresion ("if" expr-bool "then" expresion "[" "else" expresion "]" "end") if-exp)
     (expresion ("while" expr-bool "do" expresion "done") while-exp)
     (expresion ("for" identifier "in" expresion "do" expresion "done") for-exp)
     (expresion ("print" "(" expresion ")") print-exp)
-    (expresion ("proc" "(" (separated-list identifier ",") ")" expresion) proc-exp)
-    (expresion ("aplicar" "(" expresion (arbno expresion) ")") app-exp)
-    (expresion ("rec" (arbno identifier "(" (separated-list identifier ",") ")" "=" expresion)  "in" expresion) rec-exp)
-
+   
     (primitive ("+") add-prim-aritmetica) ;; Base de interpretador del curso
     (primitive ("-") substract-prim-aritmetica) ;; Base de interpretador del curso
     (primitive ("*") mult-prim-aritmetica) ;; Base de interpretador del curso
@@ -167,6 +181,31 @@
     (oper-bin-bool ("and") and-bool)
     (oper-bin-bool ("or") or-bool)
     (oper-un-bool ("not") not-bool)
+
+    ;; -- Gramatica para Listas --
+    
+    (expr-lista (prim-lista "[" (separated-list expresion ";") "]") expr-lista-normal)
+    (expr-lista ("set-list" "[" lista-a-modificar ";" expresion ";" expresion "]") expr-lista-set) 
+    (lista-a-modificar ("id" identifier) lista-a-modificar-id)
+    (lista-a-modificar ("lista-" expr-lista) lista-a-modificar-lista)
+    (prim-lista ("crear-lista") prim-crear-lista)
+    (prim-lista ("cabeza") prim-cabeza-lista)
+    (prim-lista ("null?") prim-pregunta-vacioLista) 
+    (prim-lista ("cola") prim-cola-lista)
+    (prim-lista ("crear-null") prim-crear-vacioLista)
+    (prim-lista ("lista?") prim-pregunta-lista) 
+    (prim-lista ("append") prim-adicionar-lista)
+    (prim-lista ("ref-list") prim-ref-lista)
+
+    ;; -- Gramatica para Tuplas --
+
+    (prim-tupla ("crear-tupla") prim-crear-tupla)
+    (prim-tupla ("cabeza-tupla") prim-cabeza-tupla)
+    (prim-tupla ("null-tupla?") prim-pregunta-vacioTupla)
+    (prim-tupla ("crear-null-tupla") prim-crear-vacioTupla)
+    (prim-tupla ("tupla?") prim-pregunta-tupla)
+    (prim-tupla ("cola-tupla") prim-cola-tupla)
+    (prim-tupla ("ref-tupla") prim-ref-tupla)
     ))
 
 ;;************************************************************************************************************
@@ -231,23 +270,39 @@
       (num-exp (numero) numero)
       (id-exp (id) (apply-env env id))
       (hexa-exp (base hexa-number) (base-hexa->numero base hexa-number))
+      (convertir-num-a-hexa (num) (numero->base-hexa num))
       (text-exp (cadena) (substring cadena 1 (- (string-length cadena) 1)))
       (bool-exp (booleano) (eval-bool booleano))
       (primapp-exp (prim rands) (let ((args (eval-rands rands env)))
                                   (apply-primitive prim args env)))
       (bool-app-exp (exprbooleana) (eval-expr-bool exprbooleana env))
       (lista-exp (expr-lista) (eval-expr-lista expr-lista env))
-      (tupla-exp (prim tupla) (apply-prim-tupla prim tupla env)) ;;Tupla
+      (tupla-exp (prim tupla) (apply-prim-tupla prim tupla env))
       (let-exp (ids exps body) (let ((args (eval-rands exps env)))
                                  (eval-expresion body (extend-env ids args env))))
       (const-exp (ids exps body) (let ((args (eval-rands exps env)))
                                    (eval-expresion body (extend-const-env ids args env))))
+      (rec-exp (proc-names idss bodies rec-body)
+                  (eval-expresion rec-body
+                                   (extend-env-recursively proc-names idss bodies env)))
+      (if-exp (exp-bool true-exp false-exp) (if (eval-expr-bool exp-bool env)
+                                                (eval-expresion true-exp env)
+                                                (eval-expresion false-exp env)))
+      (proc-exp (ids body) (closure ids body env))
+      (app-exp (rator rands) (let ((proc (eval-expresion rator env))
+                                   (args (eval-rands rands env)))
+                               (if (procval? proc)
+                                   (apply-procedure proc args)
+                                   (eopl:error 'eval-expresion "Attempt to apply non-procedure ~s" proc))))
       (begin-exp (exp exps) (let loop ((acc (eval-expresion exp env))
                                        (exps exps))
                               (if (null? exps)
                                   acc
                                   (loop (eval-expresion (car exps) env)
                                         (cdr exps)))))
+      (set-exp (id new-exps) (begin
+                               (setref! (apply-env-ref env id) (eval-expresion new-exps env))
+                               env))
       (while-exp (exp-bool exp) (let loop ()
                                   (if (eval-expr-bool exp-bool env)
                                       (begin (eval-expresion exp env)
@@ -264,64 +319,10 @@
                                            (eval-expresion exp nuevo-env)
                                            (loop (+ i 1)))))
                                    (loop 0)))
-      (print-exp (exp) (let ((result (eval-expresion exp env)))
-                         (display result)
-                         result))
-      (set-exp (id new-exps) (begin
-                               (setref! (apply-env-ref env id) (eval-expresion new-exps env))
-                               env))
-      (if-exp (exp-bool true-exp false-exp) (if (eval-expr-bool exp-bool env)
-                                                (eval-expresion true-exp env)
-                                                (eval-expresion false-exp env)))
-      (proc-exp (ids body) (closure ids body env))
-      (app-exp (rator rands) (let ((proc (eval-expresion rator env))
-                                   (args (eval-rands rands env)))
-                               (if (procval? proc)
-                                   (apply-procedure proc args)
-                                   (eopl:error 'eval-expresion "Attempt to apply non-procedure ~s" proc))))
-      (rec-exp (proc-names idss bodies rec-body)
-                  (eval-expresion rec-body
-                                   (extend-env-recursively proc-names idss bodies env))) ;;Nuevo para la recursion
+      (print-exp (exp) (let ((resultado (eval-expresion exp env)))
+                         (display resultado)
+                         resultado))
       )))
-
-(define eval-expr-lista
-  (lambda (expr env)
-    (cases expr-lista expr
-      (expr-lista-normal (prim lista) (apply-prim-lista prim lista env))
-      (expr-lista-set (lista pos nuevo-valor) (eval-lista-a-modificar lista pos nuevo-valor env))
-      )))
-
-(define eval-lista-a-modificar
-  (lambda (lista pos nuevo-valor env)
-    (cases lista-a-modificar lista
-      (lista-a-modificar-id (id) (let* ((vec (apply-env env id))
-                                        (index (eval-rands (cons pos '()) env))
-                                        (ref (apply-env-ref env id))
-                                        (mutable (ismutable? ref)))
-                                   (if mutable
-                                       (vector-set! vec (car index) nuevo-valor)
-                                       (eopl:error 'vector-set! "No se puede modificar la lista constante"))
-                                   vec))
-      (lista-a-modificar-lista (exp) (let ((lista (eval-rands-list (cons exp '()) env))
-                                           (index (eval-rands (cons pos '()) env)))
-                                       (vector-set! (car lista) (car index) nuevo-valor)
-                                       (car lista)))
-      )))
-
-(define ismutable?
-  (lambda (ref)
-    (cases reference ref
-      (a-ref (pos vec mut) mut)
-      )))
-
-(define eval-rands-list
-  (lambda (rands env)
-    (map (lambda (x) (eval-rand-list x env)) rands)))
-
-(define eval-rand-list
-  (lambda (rand env)
-    (eval-expr-lista rand env)))
-
 
 ;;apply-primitive: <primitiva> <list-of-expression> -> numero | text 
 ;;función que aplica la primitiva dada
@@ -338,123 +339,6 @@
       (decr-prim-aritmetica () (- (car args) 1))
       (longitud-prim-text () (string-length (car args)))
       (concatenar-prim-text () (string-append (car args) (cadr args)))
-      )))
-
-;;************************************************************************************************************
-;;apply-primitive-lista:
-;;función que aplica la primitiva dada a las listas
-(define apply-prim-lista
-  (lambda (prim lista env)
-    (cases prim-lista prim
-      ;;Prim para crear listas vacias
-      (prim-crear-vacioLista () #())
-      ;;Prim para preguntar si esta vacia la lista
-      (prim-pregunta-vacioLista () (if (= 0 (vector-length (car (eval-rands lista env))))
-                                       (eval-bool (bool-true))
-                                       (eval-bool (bool-false))))
-      ;;Prim para crear listas
-      (prim-crear-lista () (apply vector lista))
-      ;;Prim para preguntar si es una lista
-      (prim-pregunta-lista () (let ((args (eval-rands lista env))) ;;***************************Bien
-                                (if (vector? (car args))
-                                    (eval-bool (bool-true))
-                                    (eval-bool (bool-false)))))
-      ;;Prim para extraer la cabeza de la lista
-      (prim-cabeza-lista () (let* ((args (eval-rands lista env))
-                                  (vec (car args)))
-                                  (eval-expresion (vector-ref vec 0) env)))
-      ;;Prim para extraer la cola de la lista
-      (prim-cola-lista () (let* ((args (eval-rands lista env))  ;;***********************************Bien
-                                  (vec (car args)))
-                            (list->vector (cdr (vector->list vec)))))
-      
-      ;;Prim para seleccionar un elemento de una lista
-      (prim-ref-lista () (let* ((args (eval-rands lista env))
-                                (vec (car args))
-                                (index (cadr args)))
-                           (eval-expresion (vector-ref vec index) env)))
-
-      ;;Prim para adicionar elementos a una lista
-       (prim-adicionar-lista () (let* ((args (eval-rands-exp2 (list (cadr lista)) env)) ;;*******************************Cambio para que cuando se haga el append se haga por referencia y no por valor
-                                      (vec-ref (apply-env-ref env (obtener-id-lista (car lista))))) ; Obtiene referencia
-                                 (cases reference vec-ref
-                                   (a-ref (pos vec mutable?)
-                                          (if mutable?
-                                              (let ((new-vec (append (vector->list (car (vector->list vec))) args)))
-                                                (vector-set! vec pos (apply vector new-vec)))
-                                              (eopl:error 'prim-adicionar-lista "Cannot modify immutable list"))))))
-      )))
-(define eval-expresion2
-  (lambda (lista env)
-    (cases expresion lista
-      (id-exp (id) (apply-env env id))
-      (lista-exp (expr-lista) (eval-expr-lista expr-lista env))
-      (tupla-exp (prim tupla) (apply-prim-tupla prim tupla env)) ;;Tupla
-      (proc-exp (ids body) (closure ids body env))
-      (else lista)
-      )))
-;;funciones auxiliares para aplicar eval-expresion a cada elemento de una 
-;;lista de operandos (expresiones)
-(define eval-rands-exp2
-  (lambda (rands env)
-    (map (lambda (x) (eval-rand-exp2 x env)) rands)))
-
-(define eval-rand-exp2
-  (lambda (rand env)
-    (eval-expresion2 rand env)))
-
-;;Funcion Auxiliar para listas
- (define eliminar_parentesis
-  (lambda (lista)
-    (if (null? lista)
-        '()
-        (if (list? (car lista))
-            (append (car lista) (eliminar_parentesis (cdr lista)))
-            (cons (car lista) (eliminar_parentesis (cdr lista)))
-         ) 
-     )
-   )
- )
-   
-(define obtener-id-lista
-  (lambda (expr)
-    (cases expresion expr
-      (id-exp (id) id)
-      (else (eopl:error 'obtener-id-lista "Expected named list")))))
-
-;;************************************************************************************************************
-;;apply-primitive-tupla:
-;;función que aplica la primitiva dada a las listas
-(define apply-prim-tupla
-  (lambda (prim tupla env)
-    (cases prim-tupla prim
-      ;;Prim para preguntar si esta vacia la tupla
-      (prim-pregunta-vacioTupla () (if (null? (car (eval-rands tupla env))) ;; **************************************************************************** Si le doy una lista deberia salir error?
-                                       (eval-bool (bool-true))
-                                       (eval-bool (bool-false))))
-      ;;Prim para crear tupla vacias
-      (prim-crear-vacioTupla () '()) ;; **************************************************************************** Bien?
-      ;;Prim para crear tupla
-      (prim-crear-tupla () tupla) ;; **************************************************************************** Bien?
-      ;;Prim para preguntar si es una tupla
-      (prim-pregunta-tupla () (let ((args (eval-rands tupla env))) ;; **************************************************************************** Bien?
-                                (if (list? (car args))
-                                    (eval-bool (bool-true))
-                                    (eval-bool (bool-false)))))
-      ;;Prim para extraer la cabeza de la tupla
-      (prim-cabeza-tupla () (let* ((args (eval-rands tupla env)) ;; **************************************************************************** Bien?
-                                  (tup (car args)))
-                                  (eval-expresion (car tup) env)))
-      ;;Prim para extraer la cola de la tupla
-      (prim-cola-tupla () (let* ((args (eval-rands tupla env)) ;; **************************************************************************** Bien?
-                                  (tup (car args)))
-                                  (cdr tup)))
-      ;;Prim para seleccionar un elemento de una tupla
-      (prim-ref-tupla () (let* ((args (eval-rands tupla env)) ;; **************************************************************************** Bien?
-                                (tup (car args))
-                                (vec (list->vector tup))
-                                (index (cadr args)))
-                           (eval-expresion (vector-ref vec index) env)))
       )))
 
 ;;************************************************************************************************************
@@ -529,6 +413,14 @@
                                  (apply-env-ref env sym))))
       )))
 
+;;funcion para determinar si una variable es mutable
+;;recibe la referencia a dicha variable
+(define ismutable?
+  (lambda (ref)
+    (cases reference ref
+      (a-ref (pos vec mut) mut)
+      )))
+
 ;;************************************************************************************************************
 
 ;; -- Funciones Auxiliares --
@@ -577,8 +469,24 @@
 ;; (16 1 2) --> 33
 ;; (16 2 0 1) --> 258
 
+;;funcion auxiliar para cambiar un numero en base 10
+;;a un numero en base hexa-decimal con la representacion bignum
+
+(define numero->base-hexa
+  (lambda (num)
+    (cons 16 (let rec ((n num))
+               (if (< n 16)
+                   (list n)
+                   (let ((conciente (quotient n 16))
+                         (resto (remainder n 16)))
+                     (cons resto (rec conciente))))))))
+
+;; num->hexa(258) --> (16 2 0 1)
+;; num->hexa(33) --> (16 1 2)
+
 ;;funciones auxiliares para aplicar eval-expresion a cada elemento de una 
 ;;lista de operandos (expresiones)
+
 (define eval-rands
   (lambda (rands env)
     (map (lambda (x) (eval-rand x env)) rands)))
@@ -606,7 +514,7 @@
 ;;eval-expr-bool: <expr-bool> <enviroment> -> True | False
 ;;función que evalúa una expresion booleana 
 ;;(procesa/elimina la sintaxis abstracta de expr-bool 
-;;y retorna un valor True o False)¡
+;;y retorna un valor True o False)
 
 (define eval-expr-bool
   (lambda (exp env)
@@ -655,6 +563,7 @@
 
 ;;funciones auxiliares para aplicar eval-expr-bool a cada elemento de una 
 ;;lista de operandos (expresiones booleanas)
+
 (define eval-rands-bools
   (lambda (rands env)
     (map (lambda (x) (eval-rand-bool x env)) rands)))
@@ -662,6 +571,160 @@
 (define eval-rand-bool
   (lambda (rand env)
     (eval-expr-bool rand env)))
+
+
+;; -- Funciones auxiliares para las listas --
+
+
+;;eval-expr-lista: <expr-lista> <enviroment> -> vector | bool
+;;| elemvector(Todo lo que se pueda guardar) | vacio
+;;función que evalúa una expresion lista 
+;;(procesa/elimina la sintaxis abstracta de expr-lista
+;;para segun sea el caso)
+
+(define eval-expr-lista
+  (lambda (expr env)
+    (cases expr-lista expr
+      (expr-lista-normal (prim lista) (apply-prim-lista prim lista env))
+      (expr-lista-set (lista pos nuevo-valor) (eval-lista-a-modificar lista pos nuevo-valor env))
+      )))
+
+;;apply-prim-lista: <primitiva> <list-of-expresion> -> vector | bool
+;;| elemvector(Todo lo que se pueda guardar) | vacio
+;;función que aplica la primitiva dada a un vector
+
+(define apply-prim-lista
+  (lambda (prim lista env)
+    (cases prim-lista prim
+      (prim-crear-vacioLista () #())
+      (prim-pregunta-vacioLista () (if (= 0 (vector-length (car (eval-rands lista env))))
+                                       (eval-bool (bool-true))
+                                       (eval-bool (bool-false))))
+      (prim-crear-lista () (apply vector lista))
+      (prim-pregunta-lista () (let ((args (eval-rands lista env)))
+                                (if (vector? (car args))
+                                    (eval-bool (bool-true))
+                                    (eval-bool (bool-false)))))
+      (prim-cabeza-lista () (let* ((args (eval-rands lista env))
+                                   (vec (car args)))
+                              (eval-expresion (vector-ref vec 0) env)))
+      (prim-cola-lista () (let* ((args (eval-rands lista env))
+                                 (vec (car args)))
+                            (list->vector (cdr (vector->list vec)))))
+
+      ;;Prim para seleccionar un elemento de una lista
+      (prim-ref-lista () (let* ((args (eval-rands lista env))
+                                (vec (car args))
+                                (index (cadr args)))
+                           (eval-expresion (vector-ref vec index) env)))
+
+      ;;Prim para adicionar elemento a una lista
+      (prim-adicionar-lista () (let* ((args (eval-rands-exp2 (list (cadr lista)) env))
+                                      (vec-ref (apply-env-ref env (obtener-id-lista (car lista))))) 
+                                 (cases reference vec-ref
+                                   (a-ref (pos vec mutable?)
+                                          (if mutable?
+                                              (let ((new-vec (append (vector->list (car (vector->list vec))) args)))
+                                                (vector-set! vec pos (apply vector new-vec)))
+                                              (eopl:error 'prim-adicionar-lista "Cannot modify immutable list"))))))
+      )))
+
+;;eval-lista-a-modificar: <lista-a-modificar> <expresion>
+;;<expresion> <enviroment> -> vector-modificado
+;;función que evalúa <lista-a-modificar>
+;;(procesa/elimina la sintaxis abstracta de lista-a-modificar
+;;para segun sea el caso)
+
+(define eval-lista-a-modificar
+  (lambda (lista pos nuevo-valor env)
+    (cases lista-a-modificar lista
+      (lista-a-modificar-id (id) (let* ((vec (apply-env env id))
+                                        (index (eval-rands (cons pos '()) env))
+                                        (ref (apply-env-ref env id))
+                                        (mutable (ismutable? ref)))
+                                   (if mutable
+                                       (vector-set! vec (car index) nuevo-valor)
+                                       (eopl:error 'vector-set! "No se puede modificar la lista constante"))
+                                   vec))
+      (lista-a-modificar-lista (exp) (let ((lista (eval-rands-list (cons exp '()) env))
+                                           (index (eval-rands (cons pos '()) env)))
+                                       (vector-set! (car lista) (car index) nuevo-valor)
+                                       (car lista)))
+      )))
+
+;;funciones auxiliares para aplicar eval-expresion2 a cada elemento de una 
+;;lista de operandos (expresiones)
+
+(define eval-rands-exp2
+  (lambda (rands env)
+    (map (lambda (x) (eval-rand-exp2 x env)) rands)))
+
+(define eval-rand-exp2
+  (lambda (rand env)
+    (eval-expresion2 rand env)))
+
+;;eval-expresion2: <expresion> <enviroment>
+;;evalua la expresión segun sea el caso en el ambiente de entrada
+;;sirve para diferenciar lo que se desea evaluar
+;;o dejar en sintaxis abstracta al introducirlo a la lista
+
+(define eval-expresion2
+  (lambda (lista env)
+    (cases expresion lista
+      (id-exp (id) (apply-env env id))
+      (lista-exp (expr-lista) (eval-expr-lista expr-lista env))
+      (tupla-exp (prim tupla) (apply-prim-tupla prim tupla env)) ;;Tupla
+      (proc-exp (ids body) (closure ids body env))
+      (else lista)
+      )))
+
+;;funcion auxiliar para obtener el id sin sintaxis abstracta 
+;;de una lista en una expresion append
+
+(define obtener-id-lista
+  (lambda (expr)
+    (cases expresion expr
+      (id-exp (id) id)
+      (else (eopl:error 'obtener-id-lista "Expected named list")))))
+
+;;funciones auxiliares para aplicar eval-expr-lista a cada elemento  
+;;de una lista de operandos (expr-lista-normal)
+
+(define eval-rands-list
+  (lambda (rands env)
+    (map (lambda (x) (eval-rand-list x env)) rands)))
+
+(define eval-rand-list
+  (lambda (rand env)
+    (eval-expr-lista rand env)))
+
+
+;; -- Funciones auxiliares para las tuplas --
+
+;;apply-prim-lista: <primitiva> <list-of-expresion> -> lista | bool
+;;| elemlista(Todo lo que se pueda guardar)
+;;función que aplica la primitiva dada a una lista
+
+(define apply-prim-tupla
+  (lambda (prim tupla env)
+    (cases prim-tupla prim
+      (prim-pregunta-vacioTupla () (if (null? (car (eval-rands tupla env))) (eval-bool (bool-true)) (eval-bool (bool-false))))
+      (prim-crear-vacioTupla () '())
+      (prim-crear-tupla () tupla)
+      (prim-pregunta-tupla () (let ((args (eval-rands tupla env)))
+                                (if (list? (car args)) (eval-bool (bool-true)) (eval-bool (bool-false)))))
+      (prim-cabeza-tupla () (let* ((args (eval-rands tupla env))
+                                   (tup (car args)))
+                              (eval-expresion (car tup) env)))
+      (prim-cola-tupla () (let* ((args (eval-rands tupla env))
+                                 (tup (car args)))
+                            (cdr tup)))
+      (prim-ref-tupla () (let* ((args (eval-rands tupla env))
+                                (tup (car args))
+                                (vec (list->vector tup))
+                                (index (cadr args)))
+                           (eval-expresion (vector-ref vec index) env)))
+      )))
 
 ;;************************************************************************************************************
 
