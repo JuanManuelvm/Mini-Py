@@ -253,13 +253,25 @@
 
 ;;Ambiente inicial
 
+;; (define init-env
+;;   (lambda ()
+;;     (extend-env
+;;      '(i v x)
+;;      '(1 1 10)
+;;      (empty-env))))
+
+;; (define init-env
+;;   (lambda ()
+;;     (extend-env
+;;      '(x y z)
+;;      (list (direct-target 1)
+;;            (direct-target 5)
+;;            (direct-target 10))
+;;      (empty-env))))
+
 (define init-env
   (lambda ()
-    (extend-env
-     '(i v x)
-     '(1 1 10)
-     (empty-env))))
-
+    (empty-env)))
 
 ;;eval-expression: <expresion> <enviroment> -> numero
 ;;evalua la expresión en el ambiente de entrada
@@ -273,15 +285,21 @@
       (convertir-num-a-hexa (num) (numero->base-hexa num))
       (text-exp (cadena) (substring cadena 1 (- (string-length cadena) 1)))
       (bool-exp (booleano) (eval-bool booleano))
-      (primapp-exp (prim rands) (let ((args (eval-rands rands env)))
+;;       (primapp-exp (prim rands) (let ((args (eval-rands rands env)))
+;;                                   (apply-primitive prim args env)))
+      (primapp-exp (prim rands) (let ((args (eval-primapp-exp-rands rands env)))
                                   (apply-primitive prim args env)))
       (bool-app-exp (exprbooleana) (eval-expr-bool exprbooleana env))
       (lista-exp (expr-lista) (eval-expr-lista expr-lista env))
       (tupla-exp (prim tupla) (apply-prim-tupla prim tupla env))
-      (let-exp (ids exps body) (let ((args (eval-rands exps env)))
+;;       (let-exp (ids exps body) (let ((args (eval-rands exps env)))
+;;                                  (eval-expresion body (extend-env ids args env))))
+      (let-exp (ids exps body) (let ((args (eval-let-exp-rands exps env)))
                                  (eval-expresion body (extend-env ids args env))))
-      (const-exp (ids exps body) (let ((args (eval-rands exps env)))
-                                   (eval-expresion body (extend-const-env ids args env))))
+;;       (const-exp (ids exps body) (let ((args (eval-rands exps env)))
+;;                                    (eval-expresion body (extend-const-env ids args env))))
+      (const-exp (ids exps body) (let ((args (eval-let-exp-rands exps env)))
+                                    (eval-expresion body (extend-const-env ids args env))))
       (rec-exp (proc-names idss bodies rec-body)
                   (eval-expresion rec-body
                                    (extend-env-recursively proc-names idss bodies env)))
@@ -302,7 +320,7 @@
                                         (cdr exps)))))
       (set-exp (id new-exps) (begin
                                (setref! (apply-env-ref env id) (eval-expresion new-exps env))
-                               env))
+                               1))
       (while-exp (exp-bool exp) (let loop ()
                                   (if (eval-expr-bool exp-bool env)
                                       (begin (eval-expresion exp env)
@@ -314,7 +332,7 @@
                                    (define (loop i)
                                      (if (>= i n)
                                          'done
-                                         (let* ((elem (vector-ref vec i))
+                                         (let* ((elem (direct-target (eval-expresion (vector-ref vec i) env)))
                                                 (nuevo-env (extend-env (list id) (list elem) env)))
                                            (eval-expresion exp nuevo-env)
                                            (loop (+ i 1)))))
@@ -323,6 +341,18 @@
                          (display resultado)
                          resultado))
       )))
+
+(define eval-primapp-exp-rands
+  (lambda (rands env)
+    (map (lambda (x) (eval-expresion x env)) rands)))
+
+(define eval-let-exp-rands
+  (lambda (rands env)
+    (map (lambda (x) (eval-let-exp-rand x env)) rands)))
+
+(define eval-let-exp-rand
+  (lambda (rand env)
+    (direct-target (eval-expresion rand env))))
 
 ;;apply-primitive: <primitiva> <list-of-expression> -> numero | text 
 ;;función que aplica la primitiva dada
@@ -491,9 +521,25 @@
   (lambda (rands env)
     (map (lambda (x) (eval-rand x env)) rands)))
 
+;; (define eval-rand
+;;   (lambda (rand env)
+;;     (eval-expresion rand env)))
+
 (define eval-rand
   (lambda (rand env)
-    (eval-expresion rand env)))
+    (cases expresion rand
+;;         (id-exp (id) (indirect-target
+;;                        (let ((ref (apply-env-ref env id)))
+;;                          (cases target (primitive-deref ref)
+;;                            (direct-target (expval) ref)
+;;                            (indirect-target (ref1) ref1)))))
+      (id-exp (id) (let ((ref (apply-env-ref env id)))
+                      (cases target (primitive-deref ref)
+                        (direct-target (expval) (if (vector? expval)
+                                                    (indirect-target ref)
+                                                    (direct-target expval)))
+                        (indirect-target (ref1) (indirect-target ref1)))))
+      (else (direct-target (eval-expresion rand env))))))
 
 
 ;; -- Funciones auxiliares para los booleanos --
@@ -519,7 +565,7 @@
 (define eval-expr-bool
   (lambda (exp env)
     (cases expr-bool exp
-      (expr-bool-exps (prim exp1 exp2) (let((args (eval-rands (list exp1 exp2) env)))
+      (expr-bool-exps (prim exp1 exp2) (let((args (eval-rands2 (list exp1 exp2) env)))
                                         (apply-pred-prim prim args env)))
       (expr-bool-bools (prim exp1 exp2) (let ((args (eval-rands-bools (list exp1 exp2) env)))
                                           (apply-oper-bin-bool prim args env)))
@@ -597,37 +643,51 @@
   (lambda (prim lista env)
     (cases prim-lista prim
       (prim-crear-vacioLista () #())
-      (prim-pregunta-vacioLista () (if (= 0 (vector-length (car (eval-rands lista env))))
+      (prim-pregunta-vacioLista () (if (= 0 (vector-length (car (eval-rands2 lista env))))
                                        (eval-bool (bool-true))
                                        (eval-bool (bool-false))))
       (prim-crear-lista () (apply vector lista))
-      (prim-pregunta-lista () (let ((args (eval-rands lista env)))
+      (prim-pregunta-lista () (let ((args (eval-rands2 lista env)))
                                 (if (vector? (car args))
                                     (eval-bool (bool-true))
                                     (eval-bool (bool-false)))))
-      (prim-cabeza-lista () (let* ((args (eval-rands lista env))
+      (prim-cabeza-lista () (let* ((args (eval-rands2 lista env))
                                    (vec (car args)))
                               (eval-expresion (vector-ref vec 0) env)))
-      (prim-cola-lista () (let* ((args (eval-rands lista env))
+      (prim-cola-lista () (let* ((args (eval-rands2 lista env))
                                  (vec (car args)))
                             (list->vector (cdr (vector->list vec)))))
 
       ;;Prim para seleccionar un elemento de una lista
-      (prim-ref-lista () (let* ((args (eval-rands lista env))
+      (prim-ref-lista () (let* ((args (eval-rands2 lista env))
                                 (vec (car args))
                                 (index (cadr args)))
                            (eval-expresion (vector-ref vec index) env)))
-
-      ;;Prim para adicionar elemento a una lista
-      (prim-adicionar-lista () (let* ((args (eval-rands-exp2 (list (cadr lista)) env))
-                                      (vec-ref (apply-env-ref env (obtener-id-lista (car lista))))) 
-                                 (cases reference vec-ref
-                                   (a-ref (pos vec mutable?)
-                                          (if mutable?
-                                              (let ((new-vec (append (vector->list (car (vector->list vec))) args)))
-                                                (vector-set! vec pos (apply vector new-vec)))
-                                              (eopl:error 'prim-adicionar-lista "Cannot modify immutable list"))))))
-      )))
+      (prim-adicionar-lista ()
+                            (let* ((args (eval-rands-exp2 (list (cadr lista)) env))
+                                   (vec-ref (apply-env-ref env (obtener-id-lista (car lista)))))
+                              (cases reference vec-ref
+                                (a-ref (pos vec mutable?)
+                                       (if mutable?
+                                           (cases target (vector-ref vec pos)
+                                             (direct-target (expval1) (let ((new-list (append (vector->list expval1) args)))
+                                                                        (setref! vec-ref (apply vector new-list))
+                                                                        vec))
+                                             (indirect-target (ref1)
+                                                              (cases reference ref1
+                                                                (a-ref (pos2 vec2 mutable2?)
+                                                                       (cases target (vector-ref vec2 pos2)
+                                                                         (direct-target (expval2)
+                                                                                        (if mutable2?
+                                                                                            (let ((new-list (append (vector->list expval2) args)))
+                                                                                              (setref! ref1 (apply vector new-list))
+                                                                                              vec2)
+                                                                                            (eopl:error 'prim-adicionar-lista "Cannot modify immutable list") ))
+                                                                         (indirect-target (p) (eopl:error 'deref "Illegal reference: ~s" ref1)))))
+                                                              ))
+                                           (eopl:error 'prim-adicionar-lista "Cannot modify immutable list")
+                                           )))
+                              )))))
 
 ;;eval-lista-a-modificar: <lista-a-modificar> <expresion>
 ;;<expresion> <enviroment> -> vector-modificado
@@ -639,18 +699,27 @@
   (lambda (lista pos nuevo-valor env)
     (cases lista-a-modificar lista
       (lista-a-modificar-id (id) (let* ((vec (apply-env env id))
-                                        (index (eval-rands (cons pos '()) env))
+                                        (index (eval-rand2 pos env))
                                         (ref (apply-env-ref env id))
                                         (mutable (ismutable? ref)))
                                    (if mutable
-                                       (vector-set! vec (car index) nuevo-valor)
+                                       (vector-set! vec index nuevo-valor)
                                        (eopl:error 'vector-set! "No se puede modificar la lista constante"))
                                    vec))
       (lista-a-modificar-lista (exp) (let ((lista (eval-rands-list (cons exp '()) env))
-                                           (index (eval-rands (cons pos '()) env)))
+                                           (index (eval-rands2 (cons pos '()) env)))
                                        (vector-set! (car lista) (car index) nuevo-valor)
                                        (car lista)))
       )))
+
+
+(define eval-rands2
+  (lambda (rands env)
+    (map (lambda (x) (eval-rand2 x env)) rands)))
+
+(define eval-rand2
+  (lambda (rand env)
+    (eval-expresion rand env)))
 
 ;;funciones auxiliares para aplicar eval-expresion2 a cada elemento de una 
 ;;lista de operandos (expresiones)
@@ -708,18 +777,18 @@
 (define apply-prim-tupla
   (lambda (prim tupla env)
     (cases prim-tupla prim
-      (prim-pregunta-vacioTupla () (if (null? (car (eval-rands tupla env))) (eval-bool (bool-true)) (eval-bool (bool-false))))
+      (prim-pregunta-vacioTupla () (if (null? (car (eval-rands2 tupla env))) (eval-bool (bool-true)) (eval-bool (bool-false))))
       (prim-crear-vacioTupla () '())
       (prim-crear-tupla () tupla)
-      (prim-pregunta-tupla () (let ((args (eval-rands tupla env)))
+      (prim-pregunta-tupla () (let ((args (eval-rands2 tupla env)))
                                 (if (list? (car args)) (eval-bool (bool-true)) (eval-bool (bool-false)))))
-      (prim-cabeza-tupla () (let* ((args (eval-rands tupla env))
+      (prim-cabeza-tupla () (let* ((args (eval-rands2 tupla env))
                                    (tup (car args)))
                               (eval-expresion (car tup) env)))
-      (prim-cola-tupla () (let* ((args (eval-rands tupla env))
+      (prim-cola-tupla () (let* ((args (eval-rands2 tupla env))
                                  (tup (car args)))
                             (cdr tup)))
-      (prim-ref-tupla () (let* ((args (eval-rands tupla env))
+      (prim-ref-tupla () (let* ((args (eval-rands2 tupla env))
                                 (tup (car args))
                                 (vec (list->vector tup))
                                 (index (cadr args)))
@@ -735,9 +804,18 @@
          (vec vector?)
          (mutable? boolean?))) ;;Una referencia tendra un nuevo elemento booleano para saber si es mutable
 
+;; (define deref
+;;   (lambda (ref)
+;;     (primitive-deref ref)))
+
 (define deref
   (lambda (ref)
-    (primitive-deref ref)))
+    (cases target (primitive-deref ref)
+      (direct-target (expval) expval)
+      (indirect-target (ref1)
+                       (cases target (primitive-deref ref1)
+                         (direct-target (expval) expval)
+                         (indirect-target (p) (eopl:error 'deref "Illegal reference: ~s" ref1)))))))
 
 (define primitive-deref
   (lambda (ref)
@@ -745,9 +823,16 @@
       (a-ref (pos vec mutable?)
              (vector-ref vec pos)))))
 
+;; (define setref!
+;;   (lambda (ref val)
+;;     (primitive-setref! ref val)))
+
 (define setref!
-  (lambda (ref val)
-    (primitive-setref! ref val)))
+  (lambda (ref expval)
+    (let ((ref (cases target (primitive-deref ref)
+                 (direct-target (expval1) ref)
+                 (indirect-target (ref1) ref1))))
+      (primitive-setref! ref (direct-target expval)))))
 
 (define primitive-setref!
   (lambda (ref val)
@@ -776,3 +861,22 @@
     (cases procval proc
       (closure (ids body env)
                (eval-expresion body (extend-env ids args env))))))
+
+;;Definición del tipo de dato blanco (target)
+
+(define-datatype target target?
+  (direct-target (expval expval?))
+  (indirect-target (ref ref-to-direct-target?)))
+
+(define expval?
+  (lambda (x)
+    (or (number? x) (procval? x) (list? x) (vector? x) (boolean? x) (string? x))))
+
+(define ref-to-direct-target?
+  (lambda (x)
+    (and (reference? x)
+         (cases reference x
+           (a-ref (pos vec m)
+                  (cases target (vector-ref vec pos)
+                    (direct-target (v) #t)
+                    (indirect-target (v) #f)))))))
