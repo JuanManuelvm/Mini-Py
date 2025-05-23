@@ -160,7 +160,6 @@
     (primitive ("%") residuo-prim-aritmetica) ;; Base de interpretador del curso
     (primitive ("add1") incr-prim-aritmetica) ;; Base de interpretador del curso
     (primitive ("sub1") decr-prim-aritmetica) ;; Base de interpretador del curso
-    (primitive ("sub1") decr-prim-aritmetica) ;; Base de interpretador del curso
     (primitive ("len") longitud-prim-text) ;; Base de python
     (primitive ("concat") concatenar-prim-text) ;; Base de java
 
@@ -413,7 +412,7 @@
         (let ((env (extended-env-record proc-names vec (make-vector (length idss) #t) old-env)))
           (for-each
             (lambda (pos ids body)
-              (vector-set! vec pos (closure ids body env)))
+              (vector-set! vec pos (direct-target (closure ids body env))))
             (iota len) idss bodies)
           env)))))
 
