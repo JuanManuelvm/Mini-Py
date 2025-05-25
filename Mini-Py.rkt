@@ -900,8 +900,8 @@
 
 (define expval?
   (lambda (x)
-    ;(or (number? x) (procval? x) (list? x) (vector? x) (boolean? x) (string? x))
-    (display x)
+    (or (number? x) (procval? x) (list? x) (vector? x) (boolean? x) (string? x))
+    ;(display x)
     ))
 
 (define ref-to-direct-target?
