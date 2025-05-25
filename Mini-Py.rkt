@@ -139,6 +139,7 @@
     (expresion (primitive "(" (separated-list expresion ",")")") primapp-exp) ;; Base de interpretador del curso
     (expresion (expr-bool) bool-app-exp)
     (expresion (expr-lista) lista-exp)
+    (expresion (expr-registro) registro-exp)
     (expresion (prim-tupla "[" (separated-list expresion ";") "]") tupla-exp)
 
     (expresion ("var" (arbno identifier "=" expresion ",") "in" expresion) let-exp)
@@ -205,6 +206,11 @@
     (prim-tupla ("tupla?") prim-pregunta-tupla)
     (prim-tupla ("cola-tupla") prim-cola-tupla)
     (prim-tupla ("ref-tupla") prim-ref-tupla)
+
+
+    ;; -- Gramatica para registros
+    (expr-registro (prim-registro "{" (arbno identifier ":" expresion",") "}" ) registro-expr-create)
+    (prim-registro ("crear-registro") prim-crear-registro)
     ))
 
 ;;************************************************************************************************************
@@ -336,6 +342,8 @@
                                            (eval-expresion exp nuevo-env)
                                            (loop (+ i 1)))))
                                    (loop 0)))
+      (registro-exp (val)
+                  (eval-expr-registro val env))
       (print-exp (exp) (let ((resultado (eval-expresion exp env)))
                          (display resultado)
                          resultado))
@@ -767,6 +775,20 @@
     (eval-expr-lista rand env)))
 
 
+
+;; -- Funciones auxiliares para los Registros --
+
+;; cree esta funcion se supone que es aca en donde se crea ya el vector con los ids y los valors 
+
+(define eval-expr-registro
+  (lambda (expr env)
+    (cases expr-registro expr
+      (registro-expr-create (prim ids vals) (apply vector (list ids vals)))
+      )))
+
+
+
+
 ;; -- Funciones auxiliares para las tuplas --
 
 ;;apply-prim-lista: <primitiva> <list-of-expresion> -> lista | bool
@@ -863,13 +885,24 @@
 
 ;;Definición del tipo de dato blanco (target)
 
+
+
 (define-datatype target target?
   (direct-target (expval expval?))
   (indirect-target (ref ref-to-direct-target?)))
 
+
+
+;;---------------------
+
+
+
+
 (define expval?
   (lambda (x)
-    (or (number? x) (procval? x) (list? x) (vector? x) (boolean? x) (string? x))))
+    ;(or (number? x) (procval? x) (list? x) (vector? x) (boolean? x) (string? x))
+    (display x)
+    ))
 
 (define ref-to-direct-target?
   (lambda (x)
