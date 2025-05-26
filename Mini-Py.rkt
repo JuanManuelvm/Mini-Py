@@ -21,10 +21,11 @@
 ;;************************************************************************************************************
 ;;
 ;; Integrantes:
-;; Pablo Esteban Becerra -
-;; Juan Manuel Vargas -
+;;
 ;; Fernando Cardona Giraldo - 2241381
-;; 
+;; Juan Manuel Vargas - 
+;; Pablo Esteban Becerra - 2243506
+;;
 ;;************************************************************************************************************
 ;;
 ;;
@@ -58,7 +59,7 @@
 ;;                    <var-exp (ids rands body)>
 ;;                ::= const {<identificador> = <expresion>}*(,) in <expresion> 
 ;;                    <constante-exp (ids rands body)>
-;;                ::= rec {<identificador> ({<identificador>}*(,)) = <expresion>}* in <expresion> --(letrec)--
+;;                ::= rec {<identificador> ({<identificador>}(,)) = <expresion>} in <expresion> --(letrec)--
 ;;                    <rec-exp (proc-names ids bodies bodyrec)>
 ;;                ::= if <expr-bool> then <expresion> [ else <expression> ] end
 ;;                    <if-exp (exp-bool true-exp false-exp)>
@@ -76,12 +77,14 @@
 ;;                    <for-exp (ids expresion body)>
 ;;                ::= print (<expresion>)
 ;;                    <print-exp (expresion)>
+;;                ::= <circuit>
+;;                    <circuit-exp (circuito)>
 ;;
 ;;                 ::= <registro> // Falta
-;;                 ::= <circuit> // Falta
 ;;
 ;; <primitive>    ::= + | - | * | / | % | add1 | sub1
 ;;                ::= len | concat
+;;                ::= eval-circuit | merge-circuit | connect-circuits
 ;;
 ;; <expr-bool>    ::= <pred-prim>(<expresion> , <expresion>)
 ;;                     <expr-bool-exps (prim exp1 exp2)>
@@ -111,8 +114,28 @@
 ;;
 ;; <registro>      ::= {{<identificador> = <expresion>}+(;)} // FALTA
 ;; <primitive> = UN POCO DE PRIMITIVAS
+;;
+;; <circuit>       ::= ( circuit ( <gatelist> ) )
+;;                      <a-circuit (gatelist)>
+;;
+;; <gatelist>      ::= gate_list (<gate>)*
+;;                      <a-gate-list (gates)>
+;;
+;; <gate>          ::= gate identifier ( type <type> ) ( input_list <input_list> )
+;;                      <a-gate (id type input_list)>
+;;
+;; <type>          ::= and | or | not | xor
+;;
+;; <input_list>    ::= empty
+;;                      <input-list-empty>
+;;                 ::= <bool> <input_list>
+;;                      <input-list-bool (bool resto)>
+;;                 ::= identifier <input_list>
+;;                      <input-list (id resto)>
+;;
+;; <bool>          ::= True | False
 
-;;************************************************************************************************************
+;;************************************
 
 ;;Especificación Léxica
 
@@ -130,6 +153,7 @@
 
 (define grammar
   '((program (expresion) a-program)
+    
     (expresion (number) num-exp)
     (expresion (identifier) id-exp)
     (expresion ("(" number (arbno number)")") hexa-exp) ;; Representacion bignum
@@ -139,9 +163,12 @@
     (expresion (primitive "(" (separated-list expresion ",")")") primapp-exp) ;; Base de interpretador del curso
     (expresion (expr-bool) bool-app-exp)
     (expresion (expr-lista) lista-exp)
-    (expresion (expr-registro) registro-exp)
     (expresion (prim-tupla "[" (separated-list expresion ";") "]") tupla-exp)
-
+    (expresion (expr-registro) registro-exp)
+    (expresion ("circuito" circuit) circuit-exp) ; Circuito como expresion para procesar un circuito
+    (expresion (type) type-exp) ; Tipo como expresion para ser procesado correctamente en primapp-exp al aplicar la primitiva merge-circuit
+    (expresion ("'" identifier) var-exp-connect) ; 'id como expresion para poder utilizarlo en connect-circuits
+    
     (expresion ("var" (arbno identifier "=" expresion ",") "in" expresion) let-exp)
     (expresion ("const" (arbno identifier "=" expresion ",") "in" expresion) const-exp)
     (expresion ("rec" (arbno identifier "(" (separated-list identifier ",") ")" "=" expresion)  "in" expresion) rec-exp)
@@ -153,7 +180,7 @@
     (expresion ("while" expr-bool "do" expresion "done") while-exp)
     (expresion ("for" identifier "in" expresion "do" expresion "done") for-exp)
     (expresion ("print" "(" expresion ")") print-exp)
-   
+    
     (primitive ("+") add-prim-aritmetica) ;; Base de interpretador del curso
     (primitive ("-") substract-prim-aritmetica) ;; Base de interpretador del curso
     (primitive ("*") mult-prim-aritmetica) ;; Base de interpretador del curso
@@ -161,9 +188,13 @@
     (primitive ("%") residuo-prim-aritmetica) ;; Base de interpretador del curso
     (primitive ("add1") incr-prim-aritmetica) ;; Base de interpretador del curso
     (primitive ("sub1") decr-prim-aritmetica) ;; Base de interpretador del curso
+    (primitive ("sub1") decr-prim-aritmetica) ;; Base de interpretador del curso
     (primitive ("len") longitud-prim-text) ;; Base de python
     (primitive ("concat") concatenar-prim-text) ;; Base de java
-
+    (primitive ("eval-circuit") eval-circuit-primitive) ; Nueva primitiva
+    (primitive ("merge-circuit") merge-circuit-primitive) ; Nueva primitiva
+    (primitive ("connect-circuits") connect-circuits-primitive) ; Nueva primitiva
+    
     ;; -- Gramatica Booleanos --
     
     (bool ("True") bool-true)
@@ -178,9 +209,9 @@
     (pred-prim (">=") mayor-igual-que)
     (pred-prim ("==") igual-que)
     (pred-prim ("!=") diferente-que)
-    (oper-bin-bool ("and") and-bool)
-    (oper-bin-bool ("or") or-bool)
-    (oper-un-bool ("not") not-bool)
+    (oper-bin-bool ("and-bool") and-bool)
+    (oper-bin-bool ("or-bool") or-bool)
+    (oper-un-bool ("not-bool") not-bool)
 
     ;; -- Gramatica para Listas --
     
@@ -207,13 +238,26 @@
     (prim-tupla ("cola-tupla") prim-cola-tupla)
     (prim-tupla ("ref-tupla") prim-ref-tupla)
 
+    ;  -- Gramatica de los circuitos --
+    
+    (circuit ("(" "circuit" "(" gatelist ")" ")") a-circuit)
+    (gatelist ("gate_list" (arbno  "(" gate ")")) a-gate-list)
+    (gate ("gate" identifier "(" "type " type ")" "(" "input_list" input_list ")") a-gate)  
+    (type ("and") and-type)
+    (type ("or") or-type)
+    (type ("not") not-type)
+    (type ("xor") xor-type)    
+    (input_list () input-list-empty)
+    (input_list (bool input_list) input-list-bool)
+    (input_list (identifier input_list) input-list)
+
 
     ;; -- Gramatica para registros
     (expr-registro (prim-registro "{" (arbno identifier ":" expresion",") "}" ) registro-expr-create)
     (prim-registro ("crear-registro") prim-crear-registro)
     ))
 
-;;************************************************************************************************************
+;;************************************
 
 ;;Tipos de datos para la sintaxis abstracta de la gramática
 
@@ -243,7 +287,7 @@
       scanner
       grammar)))
 
-;;************************************************************************************************************
+;;************************************
 
 ;;El Interprete
 
@@ -299,8 +343,9 @@
       (tupla-exp (prim tupla) (apply-prim-tupla prim tupla env))
 ;;       (let-exp (ids exps body) (let ((args (eval-rands exps env)))
 ;;                                  (eval-expresion body (extend-env ids args env))))
-      (let-exp (ids exps body) (let ((args (eval-let-exp-rands exps env)))
-                                 (eval-expresion body (extend-env ids args env))))
+      (let-exp (ids exps body) (let ((args (eval-let-exp-rands exps env))                                     )
+                                 (eval-expresion body (extend-env ids args env))
+                                 ))
 ;;       (const-exp (ids exps body) (let ((args (eval-rands exps env)))
 ;;                                    (eval-expresion body (extend-const-env ids args env))))
       (const-exp (ids exps body) (let ((args (eval-let-exp-rands exps env)))
@@ -347,6 +392,9 @@
       (print-exp (exp) (let ((resultado (eval-expresion exp env)))
                          (display resultado)
                          resultado))
+      (circuit-exp (circuito) (eval-circuit circuito env)) ; evaluacion de circuit-exp
+      (type-exp (type) type) ; evaluacion de type-exp
+      (var-exp-connect (id) id) ; evaluacion de var-exp-connect ('id)
       )))
 
 (define eval-primapp-exp-rands
@@ -376,9 +424,13 @@
       (decr-prim-aritmetica () (- (car args) 1))
       (longitud-prim-text () (string-length (car args)))
       (concatenar-prim-text () (string-append (car args) (cadr args)))
+;;    -- Ciruitos --
+      (eval-circuit-primitive () (guardar-gates (eliminar_parentesis args) env 'noHayValorAun)) ;; Procesar la primitiva eval-circuit
+      (merge-circuit-primitive () (evaluar-merge args env)) ;; Procesar la primitiva merge-circuit
+      (connect-circuits-primitive () (connect-circuits (eliminar_parentesis args) env)) ;; Procesar la primitiva connect-circuits-primitive
       )))
 
-;;************************************************************************************************************
+;;************************************
 
 ;; -- Ambientes --
 
@@ -420,7 +472,7 @@
         (let ((env (extended-env-record proc-names vec (make-vector (length idss) #t) old-env)))
           (for-each
             (lambda (pos ids body)
-              (vector-set! vec pos (direct-target (closure ids body env))))
+              (vector-set! vec pos (closure ids body env)))
             (iota len) idss bodies)
           env)))))
 
@@ -458,7 +510,7 @@
       (a-ref (pos vec mut) mut)
       )))
 
-;;************************************************************************************************************
+;;************************************
 
 ;; -- Funciones Auxiliares --
 
@@ -776,6 +828,7 @@
 
 
 
+
 ;; -- Funciones auxiliares para los Registros --
 
 ;; cree esta funcion se supone que es aca en donde se crea ya el vector con los ids y los valors 
@@ -785,7 +838,6 @@
     (cases expr-registro expr
       (registro-expr-create (prim ids vals) (apply vector (list ids vals)))
       )))
-
 
 
 
@@ -816,7 +868,7 @@
                            (eval-expresion (vector-ref vec index) env)))
       )))
 
-;;************************************************************************************************************
+;;************************************
 
 ;; -- Referencias --
 
@@ -864,7 +916,7 @@
                  (eopl:error 'setref! "No se puede modificar la constante en la posición ~s" pos)
                  )))))
 
-;;************************************************************************************************************
+;;************************************
 
 ;; -- Procedimientos --
 
@@ -885,24 +937,13 @@
 
 ;;Definición del tipo de dato blanco (target)
 
-
-
 (define-datatype target target?
   (direct-target (expval expval?))
   (indirect-target (ref ref-to-direct-target?)))
 
-
-
-;;---------------------
-
-
-
-
 (define expval?
   (lambda (x)
-    (or (number? x) (procval? x) (list? x) (vector? x) (boolean? x) (string? x))
-    ;(display x)
-    ))
+    (or (number? x) (procval? x) (list? x) (vector? x) (boolean? x) (string? x))))
 
 (define ref-to-direct-target?
   (lambda (x)
@@ -912,3 +953,231 @@
                   (cases target (vector-ref vec pos)
                     (direct-target (v) #t)
                     (indirect-target (v) #f)))))))
+
+;;************************************
+
+;; -- Circuitos --
+
+;; guardar-gates: (gates_organizados) (environment) (valor_inicial_nulo) -> (valor_del_ultimo_gate)
+;; Función que recorre una lista de compuertas (gates) organizadas con eval-gate, 
+;; luego evalúa cada una usando su tipo e inputs, y actualiza el ambiente con el resultado
+;; de cada compuerta. Devuelve el valor de la última compuerta evaluada.
+
+
+(define guardar-gates
+  (lambda (gates env ultimoValor)
+    (if (null? gates)
+        ultimoValor
+    (let* ((gate (car gates))
+               (id (cons (car gate) '()))
+               (valor (eval-type (cadr gate) (eval-input-list (caddr gate) env)))
+               (lista-evaluda (eval-input-list (caddr gate) env))
+               (valor_lista (cons valor '()))
+               (updated-env (extend-env id valor_lista env))
+               )
+          (guardar-gates (cdr gates) updated-env valor)
+      ))))
+
+(define eliminar_parentesis
+  (lambda (lista)
+    (if (null? lista)
+        '()
+        (if (list? (car lista))
+            (append (car lista) (eliminar_parentesis (cdr lista)))
+            (cons (car lista) (eliminar_parentesis (cdr lista)))
+         ) 
+     )
+   )
+ )
+
+;; evaluar-merge: <tipo compuerta> <circuito1> <circuito2> <id> <env> -> <resultado_nuevo_circuito>
+;; Función que recibe una compuerta, dos circuitos y un entorno (env).
+;; Primero, evalúa las compuertas de los dos circuitos con la función guardar-gates.
+;; Luego, crea un nuevo circuito usando los resultados obtenidos de las evaluaciones.
+
+(define evaluar-merge
+  (lambda (arg env)
+    (let* ((compuerta (car arg))
+           (resultado1 (guardar-gates (cadr arg) env 'noHayValorAun))
+           (resultado2 (guardar-gates (caddr arg) env 'noHayValorAun))
+           (id (cadddr arg)))
+              (eval-expresion (circuit-exp 
+                      (a-circuit (a-gate-list (list
+                                               (a-gate id compuerta
+                                                       (input-list-bool
+                                                        (if (equal? resultado1 (direct-target #t)) (bool-true) (bool-false))
+                                                        (input-list-bool
+                                                         (if (equal? resultado2 (direct-target #t)) (bool-true) (bool-false))
+                                                         (input-list-empty)))))))) env))))
+
+;; connect-circuits: <circuit> <circuit> <var-exp-connect> <enviroment> -> <gate_list> evaluado
+;; Función que recive unos argumentos, conformados por dos circuitos
+;; y un symbol, obtiene el resultado del primer circuito y despues asocia ese
+;; resultado a el symbol que recibe. Por ultimo ejecuta el siguiente circuito con el
+;; valor actualizado en el entorno
+
+; (define connect-circuits
+;   (lambda (args env)
+;     (let* ((circuit1 (car args))
+;            (circuit2 (cadr args))
+;            (simbolo-reemplazar (last args))
+;            (valorCircuit1  (guardar-gates (cons circuit1 '()) env 'noHayValorAun))
+;            (env-actualizado (extend-env (list simbolo-reemplazar) (list valorCircuit1) env))
+;            (nuevosValores (eval-input-list (caddr circuit2) env-actualizado))
+;            )
+;       (eval-expresion (circuit-exp 
+;                       (a-circuit (a-gate-list (list
+;                                                (a-gate (car circuit2) (cadr circuit2)
+;                                                        (input-list-bool
+;                                                         (if (equal? (car nuevosValores) #t) (bool-true) (bool-false))
+;                                                         (input-list-bool
+;                                                          (if (equal? (cadr nuevosValores) #t) (bool-true) (bool-false))
+;                                                          (input-list-empty)))))))) env-actualizado)      
+;       )))
+
+
+(define connect-circuits
+  (lambda (args env)
+    (let* ((circuit1 (car args))
+           (circuit2 (cadr args))
+           (simbolo-reemplazar (last args))
+           (valorCircuit1  (guardar-gates (cons circuit1 '()) env 'noHayValorAun))
+           (env-actualizado (extend-env (list simbolo-reemplazar) (list valorCircuit1) env))
+           (nuevosValores (eval-input-list (caddr circuit2) env-actualizado))
+           )
+      (eval-expresion (circuit-exp 
+                      (a-circuit (a-gate-list (list
+                                               (a-gate (car circuit2) (cadr circuit2)
+                                                       (input-list-bool
+                                                        (if (equal? (car nuevosValores) #t) (bool-true) (bool-false))
+                                                        (input-list-bool
+                                                         (if (equal? (cadr nuevosValores) #t) (bool-true) (bool-false))
+                                                         (input-list-empty)))))))) env-actualizado)      
+      )))
+
+;; last <list> -> <value>
+;; Funcion que se encarga de retornar el ultimo valor de una lista
+;; se creo unicamente para ser usada en la primitiva "connect-circuits"
+(define last
+  (lambda (lst)
+    (if (null? (cdr lst))
+      (car lst)
+      (last (cdr lst)))))
+
+;; eval-circuit: <circuit> <enviroment> -> <gate_list> evaluado
+;; Función que evalúa un circuito (procesa/elimina la sintaxis abstracta de circuito
+;; y envia a evaluar el gate_list)
+(define eval-circuit
+  (lambda (crt env)
+    (cases circuit crt
+      (a-circuit (gatelst) (eval-gate-list gatelst env)))
+    ))
+
+;; eval-gate-list: <gatelist> <enviroment> -> lista de gates evaluados
+;; Función que evalúa un gatelist (procesa/elimina la sintaxis abstracta de gatelist
+;; y envia a evaluar cada gate)
+(define eval-gate-list
+  (lambda (gatelst env)
+    (cases gatelist gatelst
+      (a-gate-list (gates) (map (lambda (g) (eval-gate g env)) gates)))
+   ))
+
+;; eval-gate: <gate> <enviroment> -> lista con los datos de un gate
+;; Función que evalúa un gate (procesa/elimina la sintaxis abstracta de gate
+;; y retorna una lista con los datos del gate)
+(define eval-gate
+  (lambda (gates env)
+    (cases gate gates
+      (a-gate (id type input) (list id type input))))
+   )
+
+;; Pruebas de eval-circuit | eval-gate-list | eval-gate
+;;
+;; (interpretador)
+;; (circuit (gate_list (gate G1 (type and) (input_list A B))))
+;; Salida: ((G1 #(struct:and-type) #(struct:input-list A #(struct:input-list B #(struct:input-list-empty)))))
+;;
+;; (interpretador)
+;; (circuit (gate_list (gate G1 (type and) (input_list A B)) (gate G2 (type not) (input_list B))))
+;; Salida: ((G1 #(struct:and-type) #(struct:input-list A #(struct:input-list B #(struct:input-list-empty))))
+;;          (G2 #(struct:not-type) #(struct:input-list B #(struct:input-list-empty))))
+
+;*******************************
+
+;; eval-input-list: <input_list> <enviroment> -> lista con los input_list evaluados
+;; Función que evalúa cada input_list (procesa la sintaxis abstracta de input_list
+;; y retorna una lista con cada input evaluado (True o False))
+(define eval-input-list
+  (lambda (inptls env)
+    (cases input_list inptls
+      (input-list-empty () empty)
+      (input-list (id input) (let* ((valor (apply-env env id))
+                                    ;(valor (if (list? id-encontrado) (cadr id-encontrado) id-encontrado))
+                                    (valor-en-booleano (if (equal? valor #t) (bool-true) (bool-false)))
+                                    )
+                                 (cons (eval-bool valor-en-booleano) (eval-input-list input env))
+                               ))
+      (input-list-bool (bool input) (cons (eval-bool bool) (eval-input-list input env))))
+    ))
+
+;; eval-type: <type> (lista de inputs evaluados) -> booleano
+;; Función que evalúa el valor de un gate (procesa la sintaxis abstracta del tipo
+;; y opera los inputs evaluados con el tipo)
+(define eval-type
+  (lambda (tp inputs_evaluados)
+    (cases type tp
+      (and-type () (if (boolean? (car inputs_evaluados))
+                       (if (null? inputs_evaluados)
+                           (direct-target #t)
+                           (if (and (eqv? #t (car inputs_evaluados))
+                                    (eqv? #t (cadr inputs_evaluados)))
+                               (direct-target #t)
+                               (direct-target #f)))
+                       (if (null? inputs_evaluados)
+                           (direct-target #t)
+                           (cases target (car inputs_evaluados)
+                             (direct-target (expresion) (if (and (eqv? #t expresion)
+                                                                 (eqv? #t (cadr inputs_evaluados)))
+                                                            (direct-target #t)
+                                                            (direct-target #f)))
+                             (else 0))
+                           )))
+
+      (or-type () (if (boolean? (car inputs_evaluados))
+                       (if (null? inputs_evaluados)
+                           (direct-target #t)
+                           (if (or (eqv? #t (car inputs_evaluados))
+                               (eqv? #t (cadr inputs_evaluados)))
+                               (direct-target #t)
+                               (direct-target #f)))
+                       (if (null? inputs_evaluados)
+                           0
+                           (cases target (car inputs_evaluados)
+                             (direct-target (expresion) (if (or (eqv? #t expresion)
+                                                                (eqv? #t (cadr inputs_evaluados)))
+                                                            (direct-target #t)
+                                                            (direct-target #f)))
+                             (else 0))
+                           )))
+
+      (not-type () (if (boolean? (car inputs_evaluados))
+                       (if (null? inputs_evaluados)
+                           '()
+                           (if (eqv? #t (car inputs_evaluados))
+                               (direct-target #f) (direct-target #t)))
+                       (if (null? inputs_evaluados)
+                           0
+                           (cases target (car inputs_evaluados)
+                             (direct-target (expresion) (if (eqv? #t expresion)
+                                                            (direct-target #f) (direct-target #t)))
+                             (else 0))
+                           )))
+      
+      (xor-type ()
+        (if (null? inputs_evaluados)
+            '()
+            (let* ((elemento1 (car inputs_evaluados))
+                   (elemento2 (cadr inputs_evaluados))
+                   (resultado (if (not (eqv? elemento1 elemento2)) (direct-target #t) (direct-target #f))))
+              resultado))))
+    ))
