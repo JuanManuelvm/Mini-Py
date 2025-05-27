@@ -237,6 +237,7 @@
     (prim-tupla ("tupla?") prim-pregunta-tupla)
     (prim-tupla ("cola-tupla") prim-cola-tupla)
     (prim-tupla ("ref-tupla") prim-ref-tupla)
+    
 
     ;  -- Gramatica de los circuitos --
     
@@ -639,16 +640,24 @@
      )))
 
 ;;eval-bool: <pred-prim> expresiones-evaluadas <enviroment> -> True | False
-;;función que aplica la <pred-prim> dada 
+;;función que aplica la <pred-prim> dada
+
+(define bool->num
+  (lambda (v)
+    (cond ((eq? v #t) 1)
+          ((eq? v #f) 0)
+          (else v))))
 
 (define apply-pred-prim
   (lambda (prim args env)
+    (define arg1 (bool->num (car args)))
+    (define arg2 (bool->num (cadr args)))
     (cases pred-prim prim
-      (menor-que () (< (car args) (cadr args)))
-      (mayor-que () (> (car args) (cadr args)))
-      (menor-igual-que () (<= (car args) (cadr args)))
-      (mayor-igual-que () (>= (car args) (cadr args)))
-      (igual-que () (equal? (car args) (cadr args)))
+      (menor-que () (< arg1 arg2))
+      (mayor-que () (> arg1 arg2))
+      (menor-igual-que () (<= arg1 arg2))
+      (mayor-igual-que () (>= arg1 arg2))
+      (igual-que () (equal? (car args) (cadr args))) ; igualdad lógica tal cual
       (diferente-que () (not (equal? (car args) (cadr args))))
       )))
 
