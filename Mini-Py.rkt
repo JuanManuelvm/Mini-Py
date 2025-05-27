@@ -393,7 +393,9 @@
                   (eval-expr-registro val env))
       (print-exp (exp) (let ((resultado (eval-expresion exp env)))
                          (display resultado)
-                         resultado))
+                         (display " ")
+                         1
+                         ))
       (circuit-exp (circuito) (eval-circuit circuito env)) ; evaluacion de circuit-exp
       (type-exp (type) type) ; evaluacion de type-exp
       (var-exp-connect (id) id) ; evaluacion de var-exp-connect ('id)
@@ -421,7 +423,7 @@
       (substract-prim-aritmetica () (- (car args) (cadr args)))
       (mult-prim-aritmetica () (* (car args) (cadr args)))
       (div-prim-aritmetica () (/ (car args) (cadr args)))
-      (residuo-prim-aritmetica () (remainder (car args) (cadr args)))
+      (residuo-prim-aritmetica () (modulo-real (car args) (cadr args)))
       (incr-prim-aritmetica () (+ (car args) 1))
       (decr-prim-aritmetica () (- (car args) 1))
       (longitud-prim-text () (string-length (car args)))
@@ -431,6 +433,10 @@
       (merge-circuit-primitive () (evaluar-merge args env)) ;; Procesar la primitiva merge-circuit
       (connect-circuits-primitive () (connect-circuits (eliminar_parentesis args) env)) ;; Procesar la primitiva connect-circuits-primitive
       )))
+
+(define modulo-real
+  (lambda (a b)
+    (- a (* b (floor (/ a b))))))
 
 ;;************************************
 
