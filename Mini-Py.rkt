@@ -253,8 +253,10 @@
 
 
     ;; -- Gramatica para registros
-    (expr-registro (prim-registro "{" (arbno identifier ":" expresion",") "}" ) registro-expr-create)
-    (prim-registro ("crear-registro") prim-crear-registro)
+    (expr-registro ("crear-registro" "{" (arbno identifier ":" expresion",") "}" ) registro-expr-create)
+    (expr-registro ("registro?" "{" expresion "}" ) registro-expr-validator)
+    (expr-registro ("registro-set" "{" identifier ":" identifier ":" expresion "}" ) registro-expr-set)
+    
     ))
 
 ;;************************************
@@ -484,12 +486,14 @@
       (if (>= next end) '()
         (cons next (loop (+ 1 next)))))))
 
+
 ;;función que busca un símbolo en un ambiente y retorna el valor almacenado en la referencia
 (define apply-env
   (lambda (env sym)
     (deref (apply-env-ref env sym))))
 
 ;;función que busca un símbolo en un ambiente y retorna la referencia
+;;acaaaaaaaa para que me retorne la ref 
 (define apply-env-ref
   (lambda (env sym)
     (cases environment env
@@ -836,8 +840,24 @@
 (define eval-expr-registro
   (lambda (expr env)
     (cases expr-registro expr
-      (registro-expr-create (prim ids vals) (apply vector (list ids vals)))
+      (registro-expr-create (ids vals) (apply vector (list (apply vector ids) (apply vector vals))))
+      (registro-expr-validator (exp)
+                               (let* ((args (eval-expresion exp env))
+                                     )
+                                   (if (vector? args)
+                                       (if (and (vector? (vector-ref args 0)) (vector? (vector-ref args 1)))
+                                          (eval-bool (bool-true))
+                                          (eval-bool (bool-false))
+                                       )
+                                       (eval-bool (bool-false))
+                                       )                                                               
+                                 )
+                               )
+      (registro-expr-set (id-registro keyword value )
+                         (list id-registro keyword value))
       )))
+
+
 
 
 
