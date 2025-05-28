@@ -237,6 +237,7 @@
     (prim-tupla ("tupla?") prim-pregunta-tupla)
     (prim-tupla ("cola-tupla") prim-cola-tupla)
     (prim-tupla ("ref-tupla") prim-ref-tupla)
+    
 
     ;  -- Gramatica de los circuitos --
     
@@ -256,6 +257,7 @@
     (expr-registro ("crear-registro" "{" (arbno identifier ":" expresion",") "}" ) registro-expr-create)
     (expr-registro ("registro?" "{" expresion "}" ) registro-expr-validator)
     (expr-registro ("registro-set" "{" identifier ":" identifier ":" expresion "}" ) registro-expr-set)
+    (expr-registro ("registro-ref" "{" expresion ":" identifier"}" ) registro-expr-ref)
     
     ))
 
@@ -644,16 +646,24 @@
      )))
 
 ;;eval-bool: <pred-prim> expresiones-evaluadas <enviroment> -> True | False
-;;función que aplica la <pred-prim> dada 
+;;función que aplica la <pred-prim> dada
+
+(define bool->num
+  (lambda (v)
+    (cond ((eq? v #t) 1)
+          ((eq? v #f) 0)
+          (else v))))
 
 (define apply-pred-prim
   (lambda (prim args env)
+    (define arg1 (bool->num (car args)))
+    (define arg2 (bool->num (cadr args)))
     (cases pred-prim prim
-      (menor-que () (< (car args) (cadr args)))
-      (mayor-que () (> (car args) (cadr args)))
-      (menor-igual-que () (<= (car args) (cadr args)))
-      (mayor-igual-que () (>= (car args) (cadr args)))
-      (igual-que () (equal? (car args) (cadr args)))
+      (menor-que () (< arg1 arg2))
+      (mayor-que () (> arg1 arg2))
+      (menor-igual-que () (<= arg1 arg2))
+      (mayor-igual-que () (>= arg1 arg2))
+      (igual-que () (equal? (car args) (cadr args))) ; igualdad lógica tal cual
       (diferente-que () (not (equal? (car args) (cadr args))))
       )))
 
@@ -841,11 +851,33 @@
 
 ;; -- Funciones auxiliares para los Registros --
 
-;; cree esta funcion se supone que es aca en donde se crea ya el vector con los ids y los valors 
+;; cree esta funcion se supone que es aca en donde se crea ya el vector con los ids y los valors
+
+
+
+(define buscar-indice
+  (lambda (vec key)
+    (let loop ((i 0))
+      (cond ((= i (vector-length vec)) #f) ;; no encontrado
+            ((eq? (vector-ref vec i) key) i)
+            (else (loop (+ i 1))))))
+)
 
 (define eval-expr-registro
   (lambda (expr env)
     (cases expr-registro expr
+      (registro-expr-set (id-registro keyword value)
+                         (let* ((registro (apply-env env id-registro))
+                                (campos (vector-ref registro 0))
+                                (valores (vector-ref registro 1))
+                                (index (buscar-indice campos keyword))
+                                (nuevo (eval-expresion value env)))
+                           (if index
+                               (begin
+                                 (vector-set! valores index value)
+                                 registro)
+                               (eopl:error 'registro-set "Campo no encontrado en el registro: ~a" keyword))))
+      
       (registro-expr-create (ids vals) (apply vector (list (apply vector ids) (apply vector vals))))
       (registro-expr-validator (exp)
                                (let* ((args (eval-expresion exp env))
@@ -859,9 +891,22 @@
                                        )                                                               
                                  )
                                )
-      (registro-expr-set (id-registro keyword value )
-                         (list id-registro keyword value))
-      )))
+      (registro-expr-ref (exp keyword)
+                         (let* ((registro (eval-expresion exp env)))
+                           (if (and (vector? registro)
+                                    (= (vector-length registro) 2)
+                                    (vector? (vector-ref registro 0))
+                                    (vector? (vector-ref registro 1)))
+                               (let* ((campos (vector-ref registro 0))
+                                      (valores (vector-ref registro 1))
+                                      (index (buscar-indice campos keyword)))
+                                 (if index
+                                     (eval-expresion (vector-ref valores index) env)
+                                     (eopl:error 'registro-ref "Campo no encontrado en el registro: ~a" keyword)))
+                               (eopl:error 'registro-ref "La expresión no evalúa a un registro válido: ~a" registro))))
+      )
+    )
+  )
 
 
 
