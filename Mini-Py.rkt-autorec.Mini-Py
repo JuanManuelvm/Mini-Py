@@ -77,8 +77,6 @@
 ;;                    <for-exp (ids expresion body)>
 ;;                ::= print (<expresion>)
 ;;                    <print-exp (expresion)>
-;;                ::= lista->tupla(<lista>)  
-;;                    <lista-a-tupla (lista)>
 ;;                ::= <circuit>
 ;;                    <circuit-exp (circuito)>
 ;;
@@ -182,7 +180,6 @@
     (expresion ("while" expr-bool "do" expresion "done") while-exp)
     (expresion ("for" identifier "in" expresion "do" expresion "done") for-exp)
     (expresion ("print" "(" expresion ")") print-exp)
-    (expresion ("lista->tupla" "(" expresion ")") lista-a-tupla) ;; Adicionar lista->tupla
     
     (primitive ("+") add-prim-aritmetica) ;; Base de interpretador del curso
     (primitive ("-") substract-prim-aritmetica) ;; Base de interpretador del curso
@@ -347,9 +344,6 @@
                                   (apply-primitive prim args env)))
       (bool-app-exp (exprbooleana) (eval-expr-bool exprbooleana env))
       (lista-exp (expr-lista) (eval-expr-lista expr-lista env))
-
-      (lista-a-tupla (lista) (lista-tupla lista env)) ;; lista->tupla
-      
       (tupla-exp (prim tupla) (apply-prim-tupla prim tupla env))
 ;;       (let-exp (ids exps body) (let ((args (eval-rands exps env)))
 ;;                                  (eval-expresion body (extend-env ids args env))))
@@ -488,7 +482,7 @@
         (let ((env (extended-env-record proc-names vec (make-vector (length idss) #t) old-env)))
           (for-each
             (lambda (pos ids body)
-              (vector-set! vec pos (direct-target (closure ids body env))))
+              (vector-set! vec pos (closure ids body env)))
             (iota len) idss bodies)
           env)))))
 
@@ -720,27 +714,6 @@
       (expr-lista-set (lista pos nuevo-valor) (eval-lista-a-modificar lista pos nuevo-valor env))
       )))
 
-(define lista-tupla
-  (lambda (lista env)
-    (cases expresion lista
-      (id-exp (id) (let ((ref(apply-env-ref env id)))
-                     (cases reference ref
-                       (a-ref (pos vec mutable?)
-                              (if mutable?
-                                  (cases target (vector-ref vec pos)
-                                    (direct-target (expval1) (apply-prim-tupla (prim-crear-tupla) (vector->list expval1) env))
-                                    (indirect-target (ref1) (cases reference ref1
-                                                              (a-ref (pos1 vec1 mutable1?)
-                                                                     (if mutable1?
-                                                                         (cases target (vector-ref vec1 pos1)
-                                                                           (direct-target (expval2) (apply-prim-tupla (prim-crear-tupla) (vector->list expval2) env))
-                                                                           (indirect-target (ref2) (eopl:error 'deref "Illegal reference: ~s" ref2)))
-                                                                         (eopl:error 'prim-adicionar-lista "Cannot modify immutable list")
-                                  )))))
-                                  (eopl:error 'prim-adicionar-lista "Cannot modify immutable list")
-                                  )))))
-      (else 0))))
-
 ;;apply-prim-lista: <primitiva> <list-of-expresion> -> vector | bool
 ;;| elemvector(Todo lo que se pueda guardar) | vacio
 ;;función que aplica la primitiva dada a un vector
@@ -776,9 +749,7 @@
                                 (a-ref (pos vec mutable?)
                                        (if mutable?
                                            (cases target (vector-ref vec pos)
-                                             (direct-target (expval1) (let ((new-list (append (vector->list expval1) (if (number? (car args))
-                                                                                                                         (list (num-exp (car args)))
-                                                                                                                         args))))
+                                             (direct-target (expval1) (let ((new-list (append (vector->list expval1) args)))
                                                                         (setref! vec-ref (apply vector new-list))
                                                                         vec))
                                              (indirect-target (ref1)
@@ -787,9 +758,7 @@
                                                                        (cases target (vector-ref vec2 pos2)
                                                                          (direct-target (expval2)
                                                                                         (if mutable2?
-                                                                                            (let ((new-list (append (vector->list expval2) (if (number? (car args))
-                                                                                                                                               (list (num-exp (car args)))
-                                                                                                                                               args))))
+                                                                                            (let ((new-list (append (vector->list expval2) args)))
                                                                                               (setref! ref1 (apply vector new-list))
                                                                                               vec2)
                                                                                             (eopl:error 'prim-adicionar-lista "Cannot modify immutable list") ))
@@ -854,14 +823,6 @@
       (lista-exp (expr-lista) (eval-expr-lista expr-lista env))
       (tupla-exp (prim tupla) (apply-prim-tupla prim tupla env)) ;;Tupla
       (proc-exp (ids body) (closure ids body env))
-      (lista-a-tupla (lista) (lista-tupla lista env))
-      (primapp-exp (prim rands) (let ((args (eval-primapp-exp-rands rands env)))
-                                  (apply-primitive prim args env)))
-      (app-exp (rator rands) (let ((proc (eval-expresion rator env))
-                                   (args (eval-rands rands env)))
-                               (if (procval? proc)
-                                   (apply-procedure proc args)
-                                   (eopl:error 'eval-expresion "Attempt to apply non-procedure ~s" proc))))
       (else lista)
       )))
 
@@ -917,7 +878,7 @@
                                  registro)
                                (eopl:error 'registro-set "Campo no encontrado en el registro: ~a" keyword))))
       
-      (registro-expr-create (ids vals) (apply vector (list (apply vector ids) (apply vector (eval-rands-exp2 vals env)))))
+      (registro-expr-create (ids vals) (apply vector (list (apply vector ids) (apply vector vals))))
       (registro-expr-validator (exp)
                                (let* ((args (eval-expresion exp env))
                                      )
