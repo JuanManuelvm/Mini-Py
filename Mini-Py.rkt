@@ -681,13 +681,14 @@
 
 (define es-un-objeto?
   (lambda (obj)
-    (if (list? obj)
-        (if (part? (car obj))
-            #t
-            #f)
+    (if (null? obj)
         #f
-        )
-    ))
+        (if (list? obj)
+            (if (part? (car obj))
+                #t
+                #f)
+            #f)
+        )))
 
 (define modulo-real
   (lambda (a b)
