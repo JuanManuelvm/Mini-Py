@@ -134,25 +134,27 @@
 ;;                      <input-list (id resto)>
 ;;
 ;; <bool>          ::= True | False
-
-;;************************************
+;;
+;;************************************************************************************************************
 
 ;;Especificación Léxica
 
 (define scanner
 '((white-sp (whitespace) skip)
   (comment ("#" (arbno (not #\newline))) skip)
-  (identifier (letter (arbno (or letter digit "?"))) symbol)
+  (identifier ((or letter "_") (arbno (or letter digit "?" "_"))) symbol)
   (number (digit (arbno digit) "." digit (arbno digit)) number)
   (number ("-" digit (arbno digit) "." digit (arbno digit)) number)
   (number (digit (arbno digit)) number)
   (number ("-" digit (arbno digit)) number)
-  (string ("\"" (arbno (not #\")) "\"") string)))
+  (string ("\"" (arbno (not #\")) "\"") string)
+  ))
 
 ;;Especificación Sintáctica (gramática)
 
 (define grammar
-  '((program (expresion) a-program)
+  '(
+    (program ((arbno class-decl) expresion) a-program)
     
     (expresion (number) num-exp)
     (expresion (identifier) id-exp)
@@ -160,15 +162,14 @@
     (expresion ("num->hexa" "(" number ")") convertir-num-a-hexa)
     (expresion (string) text-exp)
     (expresion (bool) bool-exp)
-    (expresion (primitive "(" (separated-list expresion ",")")") primapp-exp) ;; Base de interpretador del curso
+    (expresion (primitive "(" (separated-list expresion ",")")") primapp-exp)
     (expresion (expr-bool) bool-app-exp)
     (expresion (expr-lista) lista-exp)
     (expresion (prim-tupla "[" (separated-list expresion ";") "]") tupla-exp)
     (expresion (expr-registro) registro-exp)
-    (expresion ("circuito" circuit) circuit-exp) ; Circuito como expresion para procesar un circuito
-    (expresion (type) type-exp) ; Tipo como expresion para ser procesado correctamente en primapp-exp al aplicar la primitiva merge-circuit
-    (expresion ("'" identifier) var-exp-connect) ; 'id como expresion para poder utilizarlo en connect-circuits
-    
+    (expresion ("'" identifier) var-exp-connect) ;; 'id como expresion para poder utilizarlo en connect-circuits
+    (expresion (type) type-exp) ;; Tipo como expresion para ser procesado correctamente en primapp-exp al aplicar la primitiva merge-circuit
+
     (expresion ("var" (arbno identifier "=" expresion ",") "in" expresion) let-exp)
     (expresion ("const" (arbno identifier "=" expresion ",") "in" expresion) const-exp)
     (expresion ("rec" (arbno identifier "(" (separated-list identifier ",") ")" "=" expresion)  "in" expresion) rec-exp)
@@ -180,20 +181,24 @@
     (expresion ("while" expr-bool "do" expresion "done") while-exp)
     (expresion ("for" identifier "in" expresion "do" expresion "done") for-exp)
     (expresion ("print" "(" expresion ")") print-exp)
+    (expresion ("circuito" circuit) circuit-exp) ;; Circuito como expresion para procesar un circuito
+    (expresion ("new" identifier "(" (separated-list expresion ",") ")") new-object-exp)
+    (expresion ("ejecutar" expresion "." identifier "("  (separated-list expresion ",") ")") method-app-exp)
+    (expresion ("super" identifier "("  (separated-list expresion ",") ")") super-call-exp)
+    (expresion (return) return-exp)
     
-    (primitive ("+") add-prim-aritmetica) ;; Base de interpretador del curso
-    (primitive ("-") substract-prim-aritmetica) ;; Base de interpretador del curso
-    (primitive ("*") mult-prim-aritmetica) ;; Base de interpretador del curso
-    (primitive ("/") div-prim-aritmetica) ;; Base de interpretador del curso
-    (primitive ("%") residuo-prim-aritmetica) ;; Base de interpretador del curso
-    (primitive ("add1") incr-prim-aritmetica) ;; Base de interpretador del curso
-    (primitive ("sub1") decr-prim-aritmetica) ;; Base de interpretador del curso
-    (primitive ("sub1") decr-prim-aritmetica) ;; Base de interpretador del curso
-    (primitive ("len") longitud-prim-text) ;; Base de python
-    (primitive ("concat") concatenar-prim-text) ;; Base de java
-    (primitive ("eval-circuit") eval-circuit-primitive) ; Nueva primitiva
-    (primitive ("merge-circuit") merge-circuit-primitive) ; Nueva primitiva
-    (primitive ("connect-circuits") connect-circuits-primitive) ; Nueva primitiva
+    (primitive ("+") add-prim-aritmetica) 
+    (primitive ("-") substract-prim-aritmetica) 
+    (primitive ("*") mult-prim-aritmetica) 
+    (primitive ("/") div-prim-aritmetica) 
+    (primitive ("%") residuo-prim-aritmetica) 
+    (primitive ("add1") incr-prim-aritmetica) 
+    (primitive ("sub1") decr-prim-aritmetica) 
+    (primitive ("len") longitud-prim-text) 
+    (primitive ("concat") concatenar-prim-text)
+    (primitive ("eval-circuit") eval-circuit-primitive) 
+    (primitive ("merge-circuit") merge-circuit-primitive) 
+    (primitive ("connect-circuits") connect-circuits-primitive) 
     
     ;; -- Gramatica Booleanos --
     
@@ -238,7 +243,14 @@
     (prim-tupla ("cola-tupla") prim-cola-tupla)
     (prim-tupla ("ref-tupla") prim-ref-tupla)
 
-    ;  -- Gramatica de los circuitos --
+     ;; -- Gramatica para Registros --
+    
+    (expr-registro ("crear-registro" "{" (arbno identifier ":" expresion",") "}" ) registro-expr-create)
+    (expr-registro ("registro?" "{" expresion "}" ) registro-expr-validator)
+    (expr-registro ("registro-set" "{" identifier ":" identifier ":" expresion "}" ) registro-expr-set)
+    (expr-registro ("registro-ref" "{" expresion ":" identifier"}" ) registro-expr-ref)
+
+    ;; -- Gramatica para circuitos --
     
     (circuit ("(" "circuit" "(" gatelist ")" ")") a-circuit)
     (gatelist ("gate_list" (arbno  "(" gate ")")) a-gate-list)
@@ -251,15 +263,18 @@
     (input_list (bool input_list) input-list-bool)
     (input_list (identifier input_list) input-list)
 
+    ;; -- Gramatica para objetos --
 
-    ;; -- Gramatica para registros
-    (expr-registro ("crear-registro" "{" (arbno identifier ":" expresion",") "}" ) registro-expr-create)
-    (expr-registro ("registro?" "{" expresion "}" ) registro-expr-validator)
-    (expr-registro ("registro-set" "{" identifier ":" identifier ":" expresion "}" ) registro-expr-set)
-    
+    (class-decl ("class" identifier "(" identifier ")" ":" (arbno "self." identifier) (arbno method-decl)) a-class-decl)
+    (method-decl ("def" identifier "("  (separated-list identifier ",") ")" ":" expresion) a-method-decl)
+    (return ("return f" (arbno fstring-part)) fstring-exp)
+    (return ("return" expresion) fexpresion-exp)
+    (fstring-part ("s" "(" string ")") fstring-literal)
+    (fstring-part ("{" expresion "}") fstring-interp)
+    ;(expresion ("mostrar") mostrar-exp)
     ))
 
-;;************************************
+;;************************************************************************************************************
 
 ;;Tipos de datos para la sintaxis abstracta de la gramática
 
@@ -289,27 +304,23 @@
       scanner
       grammar)))
 
-;;************************************
+;;************************************************************************************************************
 
 ;;El Interprete
 
-;;eval-program: <programa> -> numero
-;;función que evalúa un programa teniendo en cuenta un ambiente dado (se inicializa dentro del programa)
+;;eval-program: <programa> -> valores...
+;;Evalúa un programa completo. Primero procesa las declaraciones de clases
+;;para configurar el ambiente global de clases, y luego evalúa la expresión principal
+;;del programa en un ambiente vacío.
 
-(define eval-program
+(define eval-program 
   (lambda (pgm)
     (cases program pgm
-      (a-program (body)
-                 (eval-expresion body (init-env))))))
+      (a-program (c-decls exp)
+        (elaborate-class-decls! c-decls) 
+        (eval-expresion exp (empty-env))))))
 
 ;;Ambiente inicial
-
-;; (define init-env
-;;   (lambda ()
-;;     (extend-env
-;;      '(i v x)
-;;      '(1 1 10)
-;;      (empty-env))))
 
 ;; (define init-env
 ;;   (lambda ()
@@ -336,20 +347,14 @@
       (convertir-num-a-hexa (num) (numero->base-hexa num))
       (text-exp (cadena) (substring cadena 1 (- (string-length cadena) 1)))
       (bool-exp (booleano) (eval-bool booleano))
-;;       (primapp-exp (prim rands) (let ((args (eval-rands rands env)))
-;;                                   (apply-primitive prim args env)))
       (primapp-exp (prim rands) (let ((args (eval-primapp-exp-rands rands env)))
                                   (apply-primitive prim args env)))
       (bool-app-exp (exprbooleana) (eval-expr-bool exprbooleana env))
       (lista-exp (expr-lista) (eval-expr-lista expr-lista env))
       (tupla-exp (prim tupla) (apply-prim-tupla prim tupla env))
-;;       (let-exp (ids exps body) (let ((args (eval-rands exps env)))
-;;                                  (eval-expresion body (extend-env ids args env))))
       (let-exp (ids exps body) (let ((args (eval-let-exp-rands exps env))                                     )
                                  (eval-expresion body (extend-env ids args env))
                                  ))
-;;       (const-exp (ids exps body) (let ((args (eval-rands exps env)))
-;;                                    (eval-expresion body (extend-const-env ids args env))))
       (const-exp (ids exps body) (let ((args (eval-let-exp-rands exps env)))
                                     (eval-expresion body (extend-const-env ids args env))))
       (rec-exp (proc-names idss bodies rec-body)
@@ -389,31 +394,35 @@
                                            (eval-expresion exp nuevo-env)
                                            (loop (+ i 1)))))
                                    (loop 0)))
-      (registro-exp (val)
-                  (eval-expr-registro val env))
-      (print-exp (exp) (let ((resultado (eval-expresion exp env)))
-                         (display resultado)
-                         (display " ")
-                         1
-                         ))
-      (circuit-exp (circuito) (eval-circuit circuito env)) ; evaluacion de circuit-exp
-      (type-exp (type) type) ; evaluacion de type-exp
-      (var-exp-connect (id) id) ; evaluacion de var-exp-connect ('id)
+      (registro-exp (val) (eval-expr-registro val env))
+      (print-exp (exp) (let* ((resultado (eval-expresion exp env))
+                              (validacion (es-un-objeto? resultado)))
+                         (if validacion
+                             (find-method-and-apply '__str__ (object->class-name resultado) resultado '())
+                             (begin (display resultado)
+                                    (display " ")
+                                    1
+                               ))))
+      (circuit-exp (circuito) (eval-circuit circuito env)) 
+      (type-exp (type) type) 
+      (var-exp-connect (id) id)
+      (new-object-exp (class-name rands) (let ((args (eval-rands rands env))
+                                               (obj (new-object class-name)))
+                                           (find-method-and-apply '__init__ class-name obj args)
+                                           obj))
+      
+      (method-app-exp (obj-exp method-name rands) (let ((args (eval-rands rands env))
+                                                        (obj (eval-expresion obj-exp env)))
+                                                    (find-method-and-apply method-name (object->class-name obj) obj args)))
+      (super-call-exp (method-name rands) (let ((args (eval-rands rands env))
+                                                (obj (apply-env3 env 'self)))
+                                            (find-method-and-apply method-name (apply-env3 env '%super) obj args)
+                                            ))
+      (return-exp (exp-return) (eval-return exp-return env))
+      ;(mostrar-exp () the-class-env)
       )))
 
-(define eval-primapp-exp-rands
-  (lambda (rands env)
-    (map (lambda (x) (eval-expresion x env)) rands)))
-
-(define eval-let-exp-rands
-  (lambda (rands env)
-    (map (lambda (x) (eval-let-exp-rand x env)) rands)))
-
-(define eval-let-exp-rand
-  (lambda (rand env)
-    (direct-target (eval-expresion rand env))))
-
-;;apply-primitive: <primitiva> <list-of-expression> -> numero | text 
+;;apply-primitive: <primitiva> <list-of-expression> -> numero | text | circuit
 ;;función que aplica la primitiva dada
 
 (define apply-primitive
@@ -428,22 +437,22 @@
       (decr-prim-aritmetica () (- (car args) 1))
       (longitud-prim-text () (string-length (car args)))
       (concatenar-prim-text () (string-append (car args) (cadr args)))
-;;    -- Ciruitos --
+      
+      ;; Primitivas para ciruitos 
+      
       (eval-circuit-primitive () (guardar-gates (eliminar_parentesis args) env 'noHayValorAun)) ;; Procesar la primitiva eval-circuit
       (merge-circuit-primitive () (evaluar-merge args env)) ;; Procesar la primitiva merge-circuit
       (connect-circuits-primitive () (connect-circuits (eliminar_parentesis args) env)) ;; Procesar la primitiva connect-circuits-primitive
       )))
 
-(define modulo-real
-  (lambda (a b)
-    (- a (* b (floor (/ a b))))))
 
-;;************************************
+;;************************************************************************************************************
 
 ;; -- Ambientes --
 
 ;;definición del tipo de dato ambiente  
 ;;Puede ser (ambientevacio) | (ambienteextendido (a b c) (2 4 6) (#t #t #t) (ambienteviejo))
+
 (define-datatype environment environment?
   (empty-env-record)
   (extended-env-record
@@ -455,24 +464,40 @@
 
 ;;empty-env: -> enviroment
 ;;función que crea un ambiente vacío
+
 (define empty-env  
   (lambda ()
     (empty-env-record))) ;; llamado al constructor de ambiente vacío 
 
 ;;extend-env: <list-of symbols> <list-of numbers> enviroment -> enviroment
 ;;función que crea un ambiente extendido con variables mutables
+
 (define extend-env
   (lambda (syms vals env)
     (extended-env-record syms (list->vector vals) (make-vector (length syms) #t) env)))
 
 ;;extend-env: <list-of symbols> <list-of numbers> enviroment -> enviroment
 ;;función que crea un ambiente extendido con variables no mutables
+
 (define extend-const-env
   (lambda (syms vals env)
     (extended-env-record syms (list->vector vals) (make-vector (length syms) #f) env)))
 
-;extend-env-recursively: <list-of symbols> <list-of <list-of symbols>> <list-of expressions> environment -> environment
-;función que crea un ambiente extendido para procedimientos recursivos
+;;extend-env-refs: <list-of symbols> <vector> enviroment -> enviroment
+;;función que crea un ambiente extendido con variables mutables
+;;
+;; Argumentos:
+;; - syms: lista de identificadores de campos (símbolos)
+;; - vec: vector que contiene los valores actuales de esos campos
+;; - env: entorno actual que será extendido
+
+(define extend-env-refs
+  (lambda (syms vec env)
+    (extended-env-record syms vec (make-vector (length syms) #t) env)))
+
+;;extend-env-recursively: <list-of symbols> <list-of <list-of symbols>> <list-of expressions> environment -> environment
+;;función que crea un ambiente extendido para procedimientos recursivos
+
 (define extend-env-recursively
   (lambda (proc-names idss bodies old-env)
     (let ((len (length proc-names)))
@@ -480,12 +505,14 @@
         (let ((env (extended-env-record proc-names vec (make-vector (length idss) #t) old-env)))
           (for-each
             (lambda (pos ids body)
-              (vector-set! vec pos (closure ids body env)))
+              (vector-set! vec pos (direct-target (closure ids body env))))
             (iota len) idss bodies)
           env)))))
 
-;iota: number -> list
-;función que retorna una lista de los números desde 0 hasta end
+
+;;iota: number -> list
+;;función que retorna una lista de los números desde 0 hasta end
+
 (define iota
   (lambda (end)
     (let loop ((next 0))
@@ -494,12 +521,20 @@
 
 
 ;;función que busca un símbolo en un ambiente y retorna el valor almacenado en la referencia
+
 (define apply-env
   (lambda (env sym)
-    (deref (apply-env-ref env sym))))
+    (deref (apply-env-ref env sym)))) 
+
+;;función que busca un símbolo en un ambiente y retorna el valor almacenado en la referencia
+;;se utiliza para la implementacion de objetos (no utiliza el deref)
+
+(define apply-env3
+  (lambda (env sym)
+    (primitive-deref (apply-env-ref env sym))))
 
 ;;función que busca un símbolo en un ambiente y retorna la referencia
-;;acaaaaaaaa para que me retorne la ref 
+
 (define apply-env-ref
   (lambda (env sym)
     (cases environment env
@@ -514,15 +549,16 @@
 
 ;;funcion para determinar si una variable es mutable
 ;;recibe la referencia a dicha variable
+
 (define ismutable?
   (lambda (ref)
     (cases reference ref
       (a-ref (pos vec mut) mut)
       )))
 
-;;************************************
+;;************************************************************************************************************
 
-;; -- Funciones Auxiliares --
+;; -- Funciones Auxiliares generales --
 
 ;;funciones auxiliares para encontrar la posición de un símbolo
 ;;en la lista de símbolos de un ambiente
@@ -583,25 +619,23 @@
 ;; num->hexa(258) --> (16 2 0 1)
 ;; num->hexa(33) --> (16 1 2)
 
-;;funciones auxiliares para aplicar eval-expresion a cada elemento de una 
-;;lista de operandos (expresiones)
+;;Funcion auxiliar para evalúar una lista de operandos (rands)
+;;en un entorno dado aplicando "eval-rand" a cada uno
 
 (define eval-rands
   (lambda (rands env)
     (map (lambda (x) (eval-rand x env)) rands)))
 
-;; (define eval-rand
-;;   (lambda (rand env)
-;;     (eval-expresion rand env)))
+;;Funcion auxiliar que evalúa un operando (rand) en el entorno dado:
+;;Si es una expresión id-exp, obtiene la referencia del id en el entorno
+;;y aplica `primitive-deref` para obtener su valor de target:
+;;   - Si el valor es un vector, retorna un indirect-target.
+;;   - Si no, retorna un direct-target con el valor.
+;;Si no es una id-exp, evalúa la expresión completa y retorna su valor como direct-target.
 
 (define eval-rand
   (lambda (rand env)
     (cases expresion rand
-;;         (id-exp (id) (indirect-target
-;;                        (let ((ref (apply-env-ref env id)))
-;;                          (cases target (primitive-deref ref)
-;;                            (direct-target (expval) ref)
-;;                            (indirect-target (ref1) ref1)))))
       (id-exp (id) (let ((ref (apply-env-ref env id)))
                       (cases target (primitive-deref ref)
                         (direct-target (expval) (if (vector? expval)
@@ -610,6 +644,52 @@
                         (indirect-target (ref1) (indirect-target ref1)))))
       (else (direct-target (eval-expresion rand env))))))
 
+
+;;funciones auxiliares para aplicar eval-expresion a cada elemento de una 
+;;lista de operandos (expresiones)
+
+(define eval-rands2
+  (lambda (rands env)
+    (map (lambda (x) (eval-rand2 x env)) rands)))
+
+(define eval-rand2
+  (lambda (rand env)
+    (eval-expresion rand env)))
+
+;;funcion auxiliar para aplicar eval-expresion a cada elemento de una 
+;;lista de operandos (expresiones) (se utiliza en el primapp)
+
+(define eval-primapp-exp-rands
+  (lambda (rands env)
+    (map (lambda (x) (eval-expresion x env)) rands)))
+
+;;funciones auxiliares para aplicar eval-expresion a cada elemento de una 
+;;lista de operandos (expresiones) y retornarlo como direct-target
+;;(se utiliza en el var/const)
+
+(define eval-let-exp-rands
+  (lambda (rands env)
+    (map (lambda (x) (eval-let-exp-rand x env)) rands)))
+
+(define eval-let-exp-rand
+  (lambda (rand env)
+    (direct-target (eval-expresion rand env))))
+
+(define es-un-objeto?
+  (lambda (obj)
+    (if (list? obj)
+        (if (part? (car obj))
+            #t
+            #f)
+        #f
+        )
+    ))
+
+(define modulo-real
+  (lambda (a b)
+    (- a (* b (floor (/ a b))))))
+
+;;************************************************************************************************************
 
 ;; -- Funciones auxiliares para los booleanos --
 
@@ -648,14 +728,22 @@
 
 (define apply-pred-prim
   (lambda (prim args env)
+    (define arg1 (bool->num (car args)))
+    (define arg2 (bool->num (cadr args)))
     (cases pred-prim prim
-      (menor-que () (< (car args) (cadr args)))
-      (mayor-que () (> (car args) (cadr args)))
-      (menor-igual-que () (<= (car args) (cadr args)))
-      (mayor-igual-que () (>= (car args) (cadr args)))
+      (menor-que () (< arg1 arg2))
+      (mayor-que () (> arg1 arg2))
+      (menor-igual-que () (<= arg1 arg2))
+      (mayor-igual-que () (>= arg1 arg2))
       (igual-que () (equal? (car args) (cadr args)))
       (diferente-que () (not (equal? (car args) (cadr args))))
       )))
+
+(define bool->num
+  (lambda (v)
+    (cond ((eq? v #t) 1)
+          ((eq? v #f) 0)
+          (else v))))
 
 ;;eval-bool: <oper-bin-bool> expresiones-booleanas-evaluadas <enviroment> -> True | False
 ;;función que aplica la <oper-bin-bool> dada
@@ -687,6 +775,7 @@
   (lambda (rand env)
     (eval-expr-bool rand env)))
 
+;;************************************************************************************************************
 
 ;; -- Funciones auxiliares para las listas --
 
@@ -726,8 +815,6 @@
       (prim-cola-lista () (let* ((args (eval-rands2 lista env))
                                  (vec (car args)))
                             (list->vector (cdr (vector->list vec)))))
-
-      ;;Prim para seleccionar un elemento de una lista
       (prim-ref-lista () (let* ((args (eval-rands2 lista env))
                                 (vec (car args))
                                 (index (cadr args)))
@@ -755,8 +842,8 @@
                                                                          (indirect-target (p) (eopl:error 'deref "Illegal reference: ~s" ref1)))))
                                                               ))
                                            (eopl:error 'prim-adicionar-lista "Cannot modify immutable list")
-                                           )))
-                              )))))
+                                           )))))
+      )))
 
 ;;eval-lista-a-modificar: <lista-a-modificar> <expresion>
 ;;<expresion> <enviroment> -> vector-modificado
@@ -781,14 +868,6 @@
                                        (car lista)))
       )))
 
-
-(define eval-rands2
-  (lambda (rands env)
-    (map (lambda (x) (eval-rand2 x env)) rands)))
-
-(define eval-rand2
-  (lambda (rand env)
-    (eval-expresion rand env)))
 
 ;;funciones auxiliares para aplicar eval-expresion2 a cada elemento de una 
 ;;lista de operandos (expresiones)
@@ -836,38 +915,10 @@
   (lambda (rand env)
     (eval-expr-lista rand env)))
 
-
-
-
-;; -- Funciones auxiliares para los Registros --
-
-;; cree esta funcion se supone que es aca en donde se crea ya el vector con los ids y los valors 
-
-(define eval-expr-registro
-  (lambda (expr env)
-    (cases expr-registro expr
-      (registro-expr-create (ids vals) (apply vector (list (apply vector ids) (apply vector vals))))
-      (registro-expr-validator (exp)
-                               (let* ((args (eval-expresion exp env))
-                                     )
-                                   (if (vector? args)
-                                       (if (and (vector? (vector-ref args 0)) (vector? (vector-ref args 1)))
-                                          (eval-bool (bool-true))
-                                          (eval-bool (bool-false))
-                                       )
-                                       (eval-bool (bool-false))
-                                       )                                                               
-                                 )
-                               )
-      (registro-expr-set (id-registro keyword value )
-                         (list id-registro keyword value))
-      )))
-
-
-
-
+;;************************************************************************************************************
 
 ;; -- Funciones auxiliares para las tuplas --
+
 
 ;;apply-prim-lista: <primitiva> <list-of-expresion> -> lista | bool
 ;;| elemlista(Todo lo que se pueda guardar)
@@ -894,18 +945,64 @@
                            (eval-expresion (vector-ref vec index) env)))
       )))
 
-;;************************************
+;;************************************************************************************************************
+
+;; -- Funciones auxiliares para los Registros --
+
+
+;;eval-expr-registro: <primitiva> enviroment -> vector | bool
+;;| elemvector(Todo lo que se pueda guardar) 
+;;función que aplica la primitiva dada a un registro
+
+(define eval-expr-registro
+  (lambda (expr env)
+    (cases expr-registro expr
+      (registro-expr-create (ids vals) (apply vector (list (apply vector ids) (apply vector vals))))
+      (registro-expr-validator (exp) (let* ((args (eval-expresion exp env)))
+                                       (if (vector? args)
+                                           (if (and (vector? (vector-ref args 0)) (vector? (vector-ref args 1)))
+                                               (eval-bool (bool-true))
+                                               (eval-bool (bool-false)))
+                                           (eval-bool (bool-false))
+                                           )))
+      (registro-expr-ref (exp keyword) (let* ((registro (eval-expresion exp env)))
+                                         (if (and (vector? registro) (= (vector-length registro) 2) (vector? (vector-ref registro 0)) (vector? (vector-ref registro 1)))
+                                             (let* ((campos (vector-ref registro 0))
+                                                    (valores (vector-ref registro 1))
+                                                    (index (buscar-indice campos keyword)))
+                                               (if index
+                                                   (eval-expresion (vector-ref valores index) env)
+                                                   (eopl:error 'registro-ref "Campo no encontrado en el registro: ~a" keyword)))
+                                             (eopl:error 'registro-ref "La expresión no evalúa a un registro válido: ~a" registro))))
+      (registro-expr-set (id-registro keyword value) (let* ((registro (apply-env env id-registro))
+                                                            (campos (vector-ref registro 0))
+                                                            (valores (vector-ref registro 1))
+                                                            (index (buscar-indice campos keyword))
+                                                            (nuevo (eval-expresion value env)))
+                                                       (if index
+                                                           (begin
+                                                             (vector-set! valores index value)
+                                                             registro)
+                                                           (eopl:error 'registro-set "Campo no encontrado en el registro: ~a" keyword))))
+      )))
+
+(define buscar-indice
+  (lambda (vec key)
+    (let loop ((i 0))
+      (cond ((= i (vector-length vec)) #f) ;; no encontrado
+            ((eq? (vector-ref vec i) key) i)
+            (else (loop (+ i 1))))))
+)
+
+;;************************************************************************************************************
 
 ;; -- Referencias --
+
 
 (define-datatype reference reference?
   (a-ref (position integer?)
          (vec vector?)
          (mutable? boolean?))) ;;Una referencia tendra un nuevo elemento booleano para saber si es mutable
-
-;; (define deref
-;;   (lambda (ref)
-;;     (primitive-deref ref)))
 
 (define deref
   (lambda (ref)
@@ -921,10 +1018,6 @@
     (cases reference ref
       (a-ref (pos vec mutable?)
              (vector-ref vec pos)))))
-
-;; (define setref!
-;;   (lambda (ref val)
-;;     (primitive-setref! ref val)))
 
 (define setref!
   (lambda (ref expval)
@@ -942,9 +1035,10 @@
                  (eopl:error 'setref! "No se puede modificar la constante en la posición ~s" pos)
                  )))))
 
-;;************************************
+;;************************************************************************************************************
 
 ;; -- Procedimientos --
+
 
 (define-datatype procval procval?
   (closure
@@ -961,7 +1055,7 @@
       (closure (ids body env)
                (eval-expresion body (extend-env ids args env))))))
 
-;;Definición del tipo de dato blanco (target)
+;;Definición del tipo de dato target
 
 (define-datatype target target?
   (direct-target (expval expval?))
@@ -969,7 +1063,7 @@
 
 (define expval?
   (lambda (x)
-    (or (number? x) (procval? x) (list? x) (vector? x) (boolean? x) (string? x))))
+    (or (number? x) (procval? x) (list? x) (vector? x) (boolean? x) (string? x) (part? x))))
 
 (define ref-to-direct-target?
   (lambda (x)
@@ -980,27 +1074,26 @@
                     (direct-target (v) #t)
                     (indirect-target (v) #f)))))))
 
-;;************************************
+;;************************************************************************************************************
 
 ;; -- Circuitos --
+
 
 ;; guardar-gates: (gates_organizados) (environment) (valor_inicial_nulo) -> (valor_del_ultimo_gate)
 ;; Función que recorre una lista de compuertas (gates) organizadas con eval-gate, 
 ;; luego evalúa cada una usando su tipo e inputs, y actualiza el ambiente con el resultado
 ;; de cada compuerta. Devuelve el valor de la última compuerta evaluada.
 
-
 (define guardar-gates
   (lambda (gates env ultimoValor)
     (if (null? gates)
         ultimoValor
-    (let* ((gate (car gates))
+        (let* ((gate (car gates))
                (id (cons (car gate) '()))
                (valor (eval-type (cadr gate) (eval-input-list (caddr gate) env)))
                (lista-evaluda (eval-input-list (caddr gate) env))
                (valor_lista (cons valor '()))
-               (updated-env (extend-env id valor_lista env))
-               )
+               (updated-env (extend-env id valor_lista env)))
           (guardar-gates (cdr gates) updated-env valor)
       ))))
 
@@ -1010,11 +1103,7 @@
         '()
         (if (list? (car lista))
             (append (car lista) (eliminar_parentesis (cdr lista)))
-            (cons (car lista) (eliminar_parentesis (cdr lista)))
-         ) 
-     )
-   )
- )
+            (cons (car lista) (eliminar_parentesis (cdr lista)))))))
 
 ;; evaluar-merge: <tipo compuerta> <circuito1> <circuito2> <id> <env> -> <resultado_nuevo_circuito>
 ;; Función que recibe una compuerta, dos circuitos y un entorno (env).
@@ -1027,40 +1116,20 @@
            (resultado1 (guardar-gates (cadr arg) env 'noHayValorAun))
            (resultado2 (guardar-gates (caddr arg) env 'noHayValorAun))
            (id (cadddr arg)))
-              (eval-expresion (circuit-exp 
-                      (a-circuit (a-gate-list (list
-                                               (a-gate id compuerta
-                                                       (input-list-bool
-                                                        (if (equal? resultado1 (direct-target #t)) (bool-true) (bool-false))
+      (eval-expresion (circuit-exp
+                       (a-circuit (a-gate-list (list
+                                                (a-gate id compuerta
                                                         (input-list-bool
-                                                         (if (equal? resultado2 (direct-target #t)) (bool-true) (bool-false))
-                                                         (input-list-empty)))))))) env))))
+                                                         (if (equal? resultado1 (direct-target #t)) (bool-true) (bool-false))
+                                                         (input-list-bool
+                                                          (if (equal? resultado2 (direct-target #t)) (bool-true) (bool-false))
+                                                          (input-list-empty)))))))) env))))
 
 ;; connect-circuits: <circuit> <circuit> <var-exp-connect> <enviroment> -> <gate_list> evaluado
 ;; Función que recive unos argumentos, conformados por dos circuitos
 ;; y un symbol, obtiene el resultado del primer circuito y despues asocia ese
 ;; resultado a el symbol que recibe. Por ultimo ejecuta el siguiente circuito con el
 ;; valor actualizado en el entorno
-
-; (define connect-circuits
-;   (lambda (args env)
-;     (let* ((circuit1 (car args))
-;            (circuit2 (cadr args))
-;            (simbolo-reemplazar (last args))
-;            (valorCircuit1  (guardar-gates (cons circuit1 '()) env 'noHayValorAun))
-;            (env-actualizado (extend-env (list simbolo-reemplazar) (list valorCircuit1) env))
-;            (nuevosValores (eval-input-list (caddr circuit2) env-actualizado))
-;            )
-;       (eval-expresion (circuit-exp 
-;                       (a-circuit (a-gate-list (list
-;                                                (a-gate (car circuit2) (cadr circuit2)
-;                                                        (input-list-bool
-;                                                         (if (equal? (car nuevosValores) #t) (bool-true) (bool-false))
-;                                                         (input-list-bool
-;                                                          (if (equal? (cadr nuevosValores) #t) (bool-true) (bool-false))
-;                                                          (input-list-empty)))))))) env-actualizado)      
-;       )))
-
 
 (define connect-circuits
   (lambda (args env)
@@ -1071,19 +1140,20 @@
            (env-actualizado (extend-env (list simbolo-reemplazar) (list valorCircuit1) env))
            (nuevosValores (eval-input-list (caddr circuit2) env-actualizado))
            )
-      (eval-expresion (circuit-exp 
-                      (a-circuit (a-gate-list (list
-                                               (a-gate (car circuit2) (cadr circuit2)
-                                                       (input-list-bool
-                                                        (if (equal? (car nuevosValores) #t) (bool-true) (bool-false))
+      (eval-expresion (circuit-exp
+                       (a-circuit (a-gate-list (list
+                                                (a-gate (car circuit2) (cadr circuit2)
                                                         (input-list-bool
-                                                         (if (equal? (cadr nuevosValores) #t) (bool-true) (bool-false))
-                                                         (input-list-empty)))))))) env-actualizado)      
+                                                         (if (equal? (car nuevosValores) #t) (bool-true) (bool-false))
+                                                         (input-list-bool
+                                                          (if (equal? (cadr nuevosValores) #t) (bool-true) (bool-false))
+                                                          (input-list-empty)))))))) env-actualizado)      
       )))
 
 ;; last <list> -> <value>
 ;; Funcion que se encarga de retornar el ultimo valor de una lista
 ;; se creo unicamente para ser usada en la primitiva "connect-circuits"
+
 (define last
   (lambda (lst)
     (if (null? (cdr lst))
@@ -1093,6 +1163,7 @@
 ;; eval-circuit: <circuit> <enviroment> -> <gate_list> evaluado
 ;; Función que evalúa un circuito (procesa/elimina la sintaxis abstracta de circuito
 ;; y envia a evaluar el gate_list)
+
 (define eval-circuit
   (lambda (crt env)
     (cases circuit crt
@@ -1102,6 +1173,7 @@
 ;; eval-gate-list: <gatelist> <enviroment> -> lista de gates evaluados
 ;; Función que evalúa un gatelist (procesa/elimina la sintaxis abstracta de gatelist
 ;; y envia a evaluar cada gate)
+
 (define eval-gate-list
   (lambda (gatelst env)
     (cases gatelist gatelst
@@ -1111,34 +1183,22 @@
 ;; eval-gate: <gate> <enviroment> -> lista con los datos de un gate
 ;; Función que evalúa un gate (procesa/elimina la sintaxis abstracta de gate
 ;; y retorna una lista con los datos del gate)
+
 (define eval-gate
   (lambda (gates env)
     (cases gate gates
       (a-gate (id type input) (list id type input))))
    )
 
-;; Pruebas de eval-circuit | eval-gate-list | eval-gate
-;;
-;; (interpretador)
-;; (circuit (gate_list (gate G1 (type and) (input_list A B))))
-;; Salida: ((G1 #(struct:and-type) #(struct:input-list A #(struct:input-list B #(struct:input-list-empty)))))
-;;
-;; (interpretador)
-;; (circuit (gate_list (gate G1 (type and) (input_list A B)) (gate G2 (type not) (input_list B))))
-;; Salida: ((G1 #(struct:and-type) #(struct:input-list A #(struct:input-list B #(struct:input-list-empty))))
-;;          (G2 #(struct:not-type) #(struct:input-list B #(struct:input-list-empty))))
-
-;*******************************
-
 ;; eval-input-list: <input_list> <enviroment> -> lista con los input_list evaluados
 ;; Función que evalúa cada input_list (procesa la sintaxis abstracta de input_list
 ;; y retorna una lista con cada input evaluado (True o False))
+
 (define eval-input-list
   (lambda (inptls env)
     (cases input_list inptls
       (input-list-empty () empty)
       (input-list (id input) (let* ((valor (apply-env env id))
-                                    ;(valor (if (list? id-encontrado) (cadr id-encontrado) id-encontrado))
                                     (valor-en-booleano (if (equal? valor #t) (bool-true) (bool-false)))
                                     )
                                  (cons (eval-bool valor-en-booleano) (eval-input-list input env))
@@ -1149,6 +1209,7 @@
 ;; eval-type: <type> (lista de inputs evaluados) -> booleano
 ;; Función que evalúa el valor de un gate (procesa la sintaxis abstracta del tipo
 ;; y opera los inputs evaluados con el tipo)
+
 (define eval-type
   (lambda (tp inputs_evaluados)
     (cases type tp
@@ -1205,5 +1266,339 @@
             (let* ((elemento1 (car inputs_evaluados))
                    (elemento2 (cadr inputs_evaluados))
                    (resultado (if (not (eqv? elemento1 elemento2)) (direct-target #t) (direct-target #f))))
-              resultado))))
+              resultado))))))
+
+;;************************************************************************************************************
+
+;; -- Objetos --
+
+
+;; -- Ambiente de clases --
+
+
+;; the-class-env: lista-de-declaraciones-de-clase
+;; Representa el entorno global de clases del programa. Se inicializa como una
+;; lista vacía y luego es actualizado por la función `elaborate-class-decls!`.
+;; Contiene las definiciones de clases disponibles para ser usadas en la evaluación
+;; de expresiones del lenguaje.
+
+(define the-class-env '())
+
+;;elaborate-class-decls!: lista-de-declaraciones-de-clase -> indefinido
+;;Modifica el entorno global de clases (`the-class-env`) asignándole las
+;;declaraciones de clases pasadas como argumento. Este procedimiento muta
+;;el entorno global, por lo que afecta futuras evaluaciones de expresiones
+;;relacionadas con clases.
+
+(define elaborate-class-decls!
+  (lambda (c-decls)
+    (set! the-class-env c-decls)))
+
+;;lookup-class: símbolo -> declaración-de-clase
+;;Busca una clase por su nombre en el entorno global `the-class-env`.
+;;Si la clase se encuentra, retorna su declaración. Si no, lanza un error
+;;indicando que la clase es desconocida.
+
+(define lookup-class
+  (lambda (name)
+    (let loop ((env the-class-env))
+      (cond
+        ((null? env) (eopl:error 'lookup-class "Unknown class ~s" name))
+        ((eqv? (class-decl->class-name (car env)) name) (car env))
+        (else (loop (cdr env)))))))
+
+;;lookup-method-decl: símbolo × lista-de-declaraciones-de-método -> declaración-de-método o #f
+;;Busca una declaración de método con nombre `m-name` dentro de una lista de
+;;declaraciones de método `m-decls`. Si encuentra una coincidencia, retorna
+;;la declaración correspondiente. Si no, retorna `#f`.
+
+(define lookup-method-decl 
+  (lambda (m-name m-decls)
+    (cond
+      ((null? m-decls) #f)
+      ((eqv? m-name (method-decl->method-name (car m-decls))) (car m-decls))
+      (else (lookup-method-decl m-name (cdr m-decls))))))
+
+
+;; -- Funciones para objetos (Partes) --
+
+
+;;new-object: símbolo -> objeto
+;;Crea una nueva instancia (objeto) de una clase dada por su nombre (class-name).
+;;Si la clase es 'object' (la clase raíz), retorna una lista vacía.
+;;De lo contrario, busca la declaración de la clase en el entorno de clases,
+;;construye la parte correspondiente a esa clase, y recursivamente crea el objeto
+;;de su superclase, concatenando ambos con `cons`.
+
+(define new-object
+  (lambda (class-name)
+    (if (eqv? class-name 'object)
+        '()
+        (let ((c-decl (lookup-class class-name)))
+          (cons
+           ;(direct-target (make-first-part c-decl))
+           (make-first-part c-decl)
+           (new-object (class-decl->super-name c-decl)))))))
+
+
+;;part: Representa una parte de un objeto, correspondiente a una clase en la jerarquía.
+;;Cada objeto está compuesto por múltiples partes (una por cada clase en la cadena de herencia).
+;;a-part: símbolo × vector -> part
+;;Constructor que crea una parte de objeto. Contiene:
+;; - class-name: el nombre de la clase (símbolo)
+;; - fields: un vector con los valores de los campos de instancia de esa clase
+
+(define-datatype part part? 
+  (a-part (class-name symbol?)
+          (fields vector?)))
+
+;;make-first-part: declaración-de-clase -> parte-de-objeto
+;;Construye una parte de un objeto a partir de una declaración de clase.
+;;Esta parte contiene el nombre de la clase y un vector con tantos espacios
+;;como campos definidos en la clase. El vector representa el almacenamiento
+;;de los valores de los campos de instancia.
+
+(define make-first-part
+  (lambda (c-decl)
+    (a-part (class-decl->class-name c-decl) (make-vector (length (class-decl->field-ids c-decl)) (direct-target 0)))))
+
+
+;; -- Metodos -- 
+
+
+;;find-method-and-apply: símbolo × símbolo × objeto × lista -> valor
+;;Busca un método con nombre `m-name` en la clase `host-name`, subiendo por la
+;;jerarquía de herencia si es necesario. Si encuentra la declaración del método,
+;;aplica el método usando `apply-method`. Si llega a la clase raíz 'object' sin
+;;encontrar el método, lanza un error.
+;;
+;; Argumentos:
+;; - m-name: nombre del método a buscar
+;; - host-name: nombre de la clase desde donde iniciar la búsqueda
+;; - self: el objeto receptor del mensaje (this)
+;; - args: argumentos con los que se invocará el método
+
+(define find-method-and-apply
+  (lambda (m-name host-name self args)
+    (if (eqv? host-name 'object)
+        (eopl:error 'find-method-and-apply "No method for name ~s" m-name)
+        (let ((m-decl (lookup-method-decl m-name (class-name->method-decls host-name))))
+          (if (method-decl? m-decl)
+              (apply-method m-decl host-name self args)
+              (find-method-and-apply m-name (class-name->super-name host-name) self args))))))
+
+;;apply-method: declaración-de-método × símbolo × objeto × lista -> valor
+;;Aplica un método a un objeto dado. Evalúa el cuerpo del método en un entorno extendido
+;;que asocia:
+;; - `%super` con el nombre de la superclase del `host-name`
+;; - `self` con el objeto receptor
+;; - los parámetros formales (`ids`) con los argumentos reales (`args`)
+;; Además, incluye las variables de instancia disponibles para `host-name`
+;; mediante `build-field-env`.
+;;
+;; Argumentos:
+;; - m-decl: declaración del método a aplicar
+;; - host-name: clase desde donde se accedió al método
+;; - self: el objeto que recibe el mensaje
+;; - args: lista de argumentos para el método
+
+(define apply-method
+  (lambda (m-decl host-name self args)
+    (let ((ids (method-decl->ids m-decl))
+          (body (method-decl->body m-decl))
+          (super-name (class-name->super-name host-name)))
+      (eval-expresion body (extend-env (cons '%super (cons 'self ids))
+                                       (cons super-name (cons self args))
+                                       (build-field-env (view-object-as self host-name)))))))
+
+;;build-field-env: lista-de-partes -> entorno
+;;Construye un entorno que asocia los identificadores de campos con sus referencias
+;;reales en el vector de campos, para cada parte del objeto.
+;;Recorre recursivamente las partes (desde la clase más derivada hasta `object`)
+;;y combina los entornos parciales usando `extend-env-refs`.
+
+(define build-field-env
+  (lambda (parts)
+    (if (null? parts)
+        (empty-env)
+        (extend-env-refs (part->field-ids (car parts))
+                         (part->fields    (car parts))
+                         (build-field-env (cdr parts))))))
+
+;;view-object-as: objeto × símbolo -> lista-de-partes
+;;Extrae una "vista" del objeto como si fuera una instancia de una clase específica.
+;;Retorna la sublista de partes del objeto comenzando desde la parte correspondiente
+;;a `class-name`.
+
+(define view-object-as
+  (lambda (parts class-name)
+    (if (eqv? (part->class-name (car parts)) class-name)
+        parts
+        (view-object-as (cdr parts) class-name))))
+
+
+;; -- Extractores para declaraciones (de clases y metodos) --
+
+
+;;class-decl->class-name: declaración-de-clase -> símbolo
+;;Extrae el nombre de la clase desde una declaración de clase.
+
+(define class-decl->class-name
+  (lambda (c-decl)
+    (cases class-decl c-decl
+      (a-class-decl (class-name super-name field-ids m-decls) class-name))))
+
+;;class-decl->super-name: declaración-de-clase -> símbolo
+;; Extrae el nombre de la superclase desde una declaración de clase.
+
+(define class-decl->super-name
+  (lambda (c-decl)
+    (cases class-decl c-decl
+      (a-class-decl (class-name super-name field-ids m-decls) super-name))))
+
+;;class-decl->field-ids: declaración-de-clase -> lista-de-símbolos
+;;Extrae la lista de identificadores de campos definidos en una clase.
+
+(define class-decl->field-ids
+  (lambda (c-decl)
+    (cases class-decl c-decl
+      (a-class-decl (class-name super-name field-ids m-decls) field-ids))))
+
+;;class-decl->method-decls: declaración-de-clase -> lista-de-declaraciones-de-método
+;;Extrae la lista de métodos definidos en una clase.
+
+(define class-decl->method-decls
+  (lambda (c-decl)
+    (cases class-decl c-decl
+      (a-class-decl (class-name super-name field-ids m-decls) m-decls))))
+
+;;method-decls->method-names: lista-de-declaraciones-de-método -> lista-de-símbolos
+;;Dada una lista de declaraciones de método, extrae los nombres de cada uno.
+
+(define method-decls->method-names
+  (lambda (mds)
+    (map method-decl->method-name mds)))
+
+;;method-decl->method-name: declaración-de-método -> símbolo
+;;Extrae el nombre del método desde una declaración de método
+
+(define method-decl->method-name
+  (lambda (md)
+    (cases method-decl md
+      (a-method-decl (method-name ids body) method-name))))
+
+;;method-decl->ids: declaración-de-método -> lista-de-símbolos
+;;Extrae los parámetros (identificadores) de una declaración de método.
+
+(define method-decl->ids
+  (lambda (md)
+    (cases method-decl md
+      (a-method-decl (method-name ids body) ids))))
+
+;;method-decl->body: declaración-de-método -> expresión
+;;Extrae el cuerpo del método desde una declaración de método.
+
+(define method-decl->body
+  (lambda (md)
+    (cases method-decl md
+      (a-method-decl (method-name ids body) body))))
+
+
+;; -- Extractores para partes (objetos) y otros --
+
+
+;;part->class-name: part -> símbolo
+;;Extrae el nombre de la clase desde una parte del objeto.
+
+(define part->class-name
+  (lambda (prt)
+    (cases part prt
+      (a-part (class-name fields) class-name))))
+
+;;part->fields: part -> vector
+;;Extrae el vector de campos de instancia desde una parte del objeto.
+
+(define part->fields
+  (lambda (prt)
+    (cases part prt
+      (a-part (class-name fields) fields))))
+
+;;part->field-ids: part -> lista-de-símbolos
+;;Extrae los identificadores de los campos de una parte del objeto, usando su declaración de clase.
+
+(define part->field-ids
+  (lambda (part)
+    (class-decl->field-ids (part->class-decl part))))
+
+;;part->class-decl: part -> declaración-de-clase
+;;Obtiene la declaración de clase asociada a una parte del objeto.
+
+(define part->class-decl
+  (lambda (part)
+    (lookup-class (part->class-name part))))
+
+;;part->method-decls: part -> lista-de-declaraciones-de-método
+;;Extrae las declaraciones de método desde la clase asociada a una parte.
+
+(define part->method-decls
+  (lambda (part)
+    (class-decl->method-decls (part->class-decl part))))
+
+;;part->super-name: part -> símbolo
+;;Obtiene el nombre de la superclase de la clase asociada a una parte.
+
+(define part->super-name
+  (lambda (part)
+    (class-decl->super-name (part->class-decl part))))
+
+;;class-name->method-decls: símbolo -> lista-de-declaraciones-de-método
+;;Dado el nombre de una clase, retorna la lista de métodos definidos en su declaración.
+
+(define class-name->method-decls
+  (lambda (class-name)
+    (class-decl->method-decls (lookup-class class-name))))
+
+;;class-name->super-name: símbolo -> símbolo
+;;Dado el nombre de una clase, retorna el nombre de su superclase.
+
+(define class-name->super-name
+  (lambda (class-name)
+    (class-decl->super-name (lookup-class class-name))))
+
+;;object->class-name: objeto -> símbolo
+;;Dado un objeto (representado como lista de partes), retorna el nombre de su clase (la más derivada).
+;;Esto se logra extrayendo el nombre de clase de la primera parte del objeto.
+
+(define object->class-name
+  (lambda (parts)
+    (part->class-name (car parts))))
+
+
+;; -- Funciones auxiliares para el return  --
+
+
+(define eval-return
+  (lambda (exp-return env)
+    (cases return exp-return
+      (fstring-exp (fstring-parts) (mostrar-return (eval-fstring-parts fstring-parts env)))
+      (fexpresion-exp (exp) (eval-expresion exp env))
+      )))
+
+(define eval-fstring-parts
+  (lambda (fstring-parts env)
+    (map (lambda (x) (eval-fstring-part x env)) fstring-parts)))
+
+(define eval-fstring-part
+  (lambda (fpart env)
+    (cases fstring-part fpart
+      (fstring-literal (string) (substring string 1 (- (string-length string) 1)) )
+      (fstring-interp (expr)  (eval-expresion expr env)))
     ))
+
+(define mostrar-return
+  (lambda (lst)
+    (cond
+      ((null? lst) (newline))
+      (else (display (car lst))
+            (mostrar-return (cdr lst))
+            1))))
