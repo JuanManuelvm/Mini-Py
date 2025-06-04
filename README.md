@@ -48,7 +48,7 @@ El lenguaje fue implementado en Racket utilizando técnicas de parsing y evaluac
 
 ## Créditos
 
-Este proyecto fue desarrollado por un grupo de estudiantes de la Universidad del Valle como parte del curso de lenguajes de programación, tomando como base conceptual el libro *Essentials of Programming Languages*.
+Este proyecto fue desarrollado por un grupo de estudiantes de la Universidad del Valle como parte del curso de FUNDAMENTOS DE INTERPRETACIÓN Y COMPILACIÓN DE LENGUAJES DE PROGRAMACIÓN, tomando como base conceptual el libro *Essentials of Programming Languages*.
 
 - Fernando Cardona Giraldo - 2241381
 - Juan Manuel Vargas - 
